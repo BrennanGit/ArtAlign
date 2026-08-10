@@ -85,6 +85,7 @@ async function initialize() {
 function bindEvents() {
   elements.newProjectButton.addEventListener("click", () => elements.projectDialog.showModal());
   elements.projectForm.addEventListener("submit", createProjectFromForm);
+  elements.cancelProjectButton.addEventListener("click", () => elements.projectDialog.close());
   elements.projectForm.elements.preset.addEventListener("change", applyPreset);
   elements.projectForm.elements.ratioWidth.addEventListener("input", markPresetCustom);
   elements.projectForm.elements.ratioHeight.addEventListener("input", markPresetCustom);

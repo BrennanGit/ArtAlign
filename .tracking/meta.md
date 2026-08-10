@@ -139,6 +139,13 @@ Format:
   Functions: panViewByPointer(), pointerDown(), pointerMove(), pointerUp()
   Related: #003
 
+- [done] 015-cancel-create-project — Cancel Create Project Form (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/015-cancel-create-project.md, index.html, src/app.js
+  Functions: bindEvents(), createProjectFromForm()
+  Related: #011
+
 ---
 
 ## Status Legend
