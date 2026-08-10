@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f2f0e9">
+    <title>ArtAlign</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <section id="projectsView" class="projects-view">
+      <header class="projects-header">
+        <p class="eyebrow">Painting proportion overlay</p>
+        <h1>ArtAlign</h1>
+        <button id="newProjectButton" class="primary">New project</button>
+      </header>
+      <main id="projectList" class="project-list" aria-live="polite"></main>
+    </section>
+
+    <section id="workspaceView" class="workspace" hidden>
+      <header class="app-header">
+        <button id="backButton" class="icon-button" title="Projects" aria-label="Back to projects">&#8592;</button>
+        <button id="projectName" class="project-name" title="Rename project"></button>
+        <span id="saveState" class="save-state">Saved locally</span>
+        <div class="header-tools" aria-label="Camera tools">
+          <button id="photoButton" class="icon-button" title="Open photo" aria-label="Open photo" aria-pressed="false">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3z"/><circle cx="12" cy="13" r="4"/></svg>
+          </button>
+          <button id="liveButton" class="icon-button" title="Open live camera" aria-label="Open live camera" aria-pressed="false">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m16 10 5-3v10l-5-3z"/><rect x="3" y="6" width="13" height="12" rx="2"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="work-area">
+        <section id="viewportPanel" class="viewport-panel" aria-label="Painting viewport">
+          <div id="stage" class="stage">
+            <canvas id="projectionCanvas" aria-label="Projected painting overlay"></canvas>
+            <canvas id="editorCanvas" aria-label="Canonical canvas editor"></canvas>
+            <canvas id="interactionCanvas" aria-label="Editing handles"></canvas>
+            <video id="cameraVideo" autoplay muted playsinline></video>
+            <canvas id="loupe" class="loupe" width="160" height="160" hidden></canvas>
+            <div id="emptyHint" class="empty-hint">
+              <strong>Build the flat reference first.</strong>
+              <span>Open Layers to add a reference or drawing.</span>
+            </div>
+          </div>
+          <div id="modeChip" class="mode-chip">
+            <span id="modeLabel">Canonical canvas</span>
+            <button id="finishModeButton" class="mode-done" title="Done" aria-label="Finish current mode" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>
+            </button>
+          </div>
+          <div id="trackingLabel" class="status-announcer" role="status" aria-live="polite"></div>
+        </section>
+
+        <aside id="inspector" class="inspector" aria-label="Layers" aria-hidden="true" inert></aside>
+      </main>
+
+      <button id="layersButton" class="layers-button" title="Layers" aria-label="Open layers" aria-controls="inspector" aria-expanded="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg>
+      </button>
+    </section>
+
+    <dialog id="projectDialog">
+      <form id="projectForm" method="dialog">
+        <div class="dialog-heading">
+          <p class="eyebrow">New study</p>
+          <h2>Set the canvas plane</h2>
+        </div>
+        <label>Project name<input name="name" required value="Untitled painting"></label>
+        <label>Canvas preset<select name="preset"></select></label>
+        <div class="ratio-fields">
+          <label>Width<input name="ratioWidth" type="number" min="0.01" step="0.01" value="1"></label>
+          <span>:</span>
+          <label>Height<input name="ratioHeight" type="number" min="0.01" step="0.01" value="1"></label>
+        </div>
+        <div class="dialog-actions">
+          <button value="cancel">Cancel</button>
+          <button class="primary" value="default">Create project</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="layerDialog" class="layer-dialog">
+      <div class="dialog-heading">
+        <p class="eyebrow">New layer</p>
+        <h2>Choose a layer type</h2>
+      </div>
+      <div class="layer-type-options">
+        <button data-layer-type="drawing">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 8l3 3"/></svg>
+          <span><strong>Drawing</strong><small>Draw directly on the canvas</small></span>
+        </button>
+        <button data-layer-type="reference">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m3 16 5-4 4 3 3-2 6 5"/></svg>
+          <span><strong>Reference</strong><small>Choose a camera or gallery image</small></span>
+        </button>
+      </div>
+      <button id="cancelLayerButton">Cancel</button>
+    </dialog>
+
+    <input id="referenceInput" type="file" accept="image/*" multiple hidden>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
