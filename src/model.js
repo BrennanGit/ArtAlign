@@ -42,7 +42,6 @@ export function createProject({ name, ratioWidth, ratioHeight }) {
   assertPositiveRatio(ratioWidth, ratioHeight);
   const now = new Date().toISOString();
   const projectId = makeId("project");
-  const scribble = createScribbleLayer("Notes");
 
   return {
     id: projectId,
@@ -65,8 +64,8 @@ export function createProject({ name, ratioWidth, ratioHeight }) {
       blendMode: "normal",
       children: [],
     },
-    layers: [scribble],
-    activeLayerId: scribble.id,
+    layers: [],
+    activeLayerId: null,
     mode: MODES.VIEW,
     source: { kind: "none", assetId: null },
     projection: {

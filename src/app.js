@@ -87,6 +87,7 @@ function bindEvents() {
   elements.projectForm.elements.preset.addEventListener("change", applyPreset);
   elements.projectForm.elements.ratioWidth.addEventListener("input", markPresetCustom);
   elements.projectForm.elements.ratioHeight.addEventListener("input", markPresetCustom);
+  elements.addReferenceButton.addEventListener("click", () => elements.referenceInput.click());
   elements.projectList.addEventListener("click", handleProjectListClick);
   elements.backButton.addEventListener("click", closeProject);
   elements.projectName.addEventListener("click", renameProject);
@@ -1437,7 +1438,7 @@ function drawLoupe(point) {
   const source = rectificationSession?.image ?? (view === "live" ? elements.cameraVideo : background);
   if (!source) return;
   const loupe = elements.loupe;
-  const size = 48;
+  const size = 64;
   const dimensions = imageDimensions(source);
   const sourceX = point.x * dimensions.width;
   const sourceY = point.y * dimensions.height;

@@ -90,6 +90,34 @@ Format:
   Functions: openDatabase()
   Related: none
 
+- [done] 008-mobile-inputs-empty-state — Mobile Input and Empty State Fixes (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: index.html, styles.css, src/app.js, src/model.js, tests/model.test.mjs
+  Functions: createProject(), refresh(), handleLayerTypeClick()
+  Related: #003, #002
+
+- [done] 009-loupe-magnification — Reduce Loupe Magnification (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: src/app.js
+  Functions: drawLoupe()
+  Related: #004
+
+- [done] 010-empty-canvas-surface — White Empty Canvas Surface (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: styles.css
+  Functions: n/a
+  Related: #008
+
+- [done] 011-compact-project-modal — Compact Project Modal (2026-08-11) — Owner: agent
+  Type: refactor
+  Stability: experimental
+  Files: styles.css
+  Functions: n/a
+  Related: #006
+
 ---
 
 ## Status Legend
