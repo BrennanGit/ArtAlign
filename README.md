@@ -2,6 +2,8 @@
 
 ArtAlign is a client-side painting proportion overlay for composing references in a flat canonical canvas, then projecting those layers onto a photographed or live physical canvas.
 
+Deployed to GitHub Pages at <https://brennangit.github.io/ArtAlign/>.
+
 ## Run locally
 
 No build step is required.
