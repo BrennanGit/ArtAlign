@@ -118,6 +118,27 @@ Format:
   Functions: n/a
   Related: #006
 
+- [done] 012-empty-reference-button — Empty Reference Button Hit Target (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: styles.css
+  Functions: n/a
+  Related: #008
+
+- [done] 013-panel-scrollbar — Panel Scrollbar Gesture Target (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: styles.css
+  Functions: n/a
+  Related: #006
+
+- [done] 014-photo-swipe-panning — Photo Swipe Panning (2026-08-11) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: .tracking/014-photo-swipe-panning.md, src/input.js, src/app.js, tests/input.test.mjs
+  Functions: panViewByPointer(), pointerDown(), pointerMove(), pointerUp()
+  Related: #003
+
 ---
 
 ## Status Legend

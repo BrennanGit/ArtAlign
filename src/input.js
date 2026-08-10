@@ -80,3 +80,12 @@ export function zoomViewAt(view, requestedZoom, focus, minimumZoom = 0.25, maxim
     zoom,
   };
 }
+
+export function panViewByPointer(view, initialPointer, currentPointer, bounds) {
+  const zoom = Number.isFinite(view.zoom) && view.zoom > 0 ? view.zoom : 1;
+  return {
+    ...view,
+    panX: (view.panX ?? 0) + (currentPointer.x - initialPointer.x) / Math.max(1, bounds.width * zoom),
+    panY: (view.panY ?? 0) + (currentPointer.y - initialPointer.y) / Math.max(1, bounds.height * zoom),
+  };
+}

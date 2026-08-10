@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyReferenceGesture, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
+import { applyReferenceGesture, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
 import { referenceSourcePoint } from "../src/canonical.js";
 
 test("pointer coordinates normalize and clamp to an element", () => {
@@ -77,4 +77,12 @@ test("focal zoom preserves the focused canvas point and clamps useful limits", (
   assert.deepEqual(initial, { panX: 0.1, panY: -0.2, zoom: 1.5, rotation: 0 });
   assert.equal(zoomViewAt(initial, 0.01, focus).zoom, 0.25);
   assert.equal(zoomViewAt(initial, 20, focus).zoom, 8);
+});
+
+test("photo pan follows a pointer displacement and compensates for zoom", () => {
+  const initial = { panX: 0.1, panY: -0.2, zoom: 2, rotation: 0 };
+  const panned = panViewByPointer(initial, { x: 100, y: 50 }, { x: 300, y: 150 }, { width: 1000, height: 500 });
+
+  assert.deepEqual(panned, { panX: 0.2, panY: -0.1, zoom: 2, rotation: 0 });
+  assert.deepEqual(initial, { panX: 0.1, panY: -0.2, zoom: 2, rotation: 0 });
 });

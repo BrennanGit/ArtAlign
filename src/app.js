@@ -1,6 +1,6 @@
 import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js";
 import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js";
-import { applyReferenceGesture, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, zoomFocusFromPointer, zoomViewAt } from "./input.js";
+import { applyReferenceGesture, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
 import {
   ASPECT_PRESETS,
   BLEND_MODES,
@@ -51,6 +51,7 @@ let renamingLayerId = null;
 let layerDrag = null;
 let suppressInspectorClick = false;
 let pinchStart = null;
+let photoPanStart = null;
 let suppressEditingUntilPointersClear = false;
 let interactionRollback = null;
 const pointers = new Map();
@@ -1016,6 +1017,10 @@ function pointerDown(event) {
     beginPinchNavigation();
     return;
   }
+  if (view === "photo" && project.mode !== MODES.EDIT_CORNERS) {
+    photoPanStart = { view: { ...project.view }, pointer: { x: event.clientX, y: event.clientY } };
+    return;
+  }
   if (suppressEditingUntilPointersClear) return;
   if (project.mode === MODES.EDIT_CORNERS && view === "canonical" && rectificationSession) {
     activeCorner = nearestCorner(point, rectificationSession.quad, 0.12);
@@ -1076,6 +1081,17 @@ function pointerMove(event) {
     }
     return;
   }
+  if (photoPanStart && navigationPointers.size === 1) {
+    project.view = panViewByPointer(
+      photoPanStart.view,
+      photoPanStart.pointer,
+      { x: event.clientX, y: event.clientY },
+      elements.interactionCanvas.getBoundingClientRect(),
+    );
+    applyCanvasView();
+    drawInteraction();
+    return;
+  }
   if (suppressEditingUntilPointersClear) return;
   const samples = normalizedPointerSamples(event, elements.interactionCanvas);
   const point = samples.at(-1);
@@ -1115,6 +1131,7 @@ function pointerUp(event) {
   if (!pointers.has(event.pointerId)) return;
   pointers.delete(event.pointerId);
   navigationPointers.delete(event.pointerId);
+  photoPanStart = null;
   elements.loupe.hidden = true;
   if (suppressEditingUntilPointersClear) {
     pinchStart = null;
@@ -1162,6 +1179,7 @@ function wheelZoom(event) {
 
 function beginPinchNavigation() {
   cancelProvisionalInteraction();
+  photoPanStart = null;
   const gesture = gestureFromPointers(navigationPointers);
   pinchStart = {
     view: { ...project.view },
