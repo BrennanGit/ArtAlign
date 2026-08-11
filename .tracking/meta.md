@@ -158,6 +158,20 @@ Format:
   Functions: relativePointer(), applyReferenceHandle(), pointerDown(), pointerMove(), drawInteraction()
   Related: #003, #014, #016
 
+- [done] 018-loupe-viewport-position — Viewport-Anchored Loupe (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/018-loupe-viewport-position.md, .tracking/meta.md, index.html, styles.css
+  Functions: drawLoupe()
+  Related: #003, #017
+
+- [done] 019-mode-chip-left — Move Mode Chip Left (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/019-mode-chip-left.md, .tracking/meta.md, styles.css
+  Functions: n/a
+  Related: #008
+
 ---
 
 ## Status Legend
