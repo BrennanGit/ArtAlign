@@ -207,6 +207,13 @@ Format:
   Functions: drawInteraction(), drawDetectedQuad(), trackLiveFrame()
   Related: #023
 
+- [done] 025-slider-drag — Reliable Slider Dragging (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/025-slider-drag.md, src/app.js
+  Functions: handleInspectorInput(), requestEditorPreview()
+  Related: #024
+
 ---
 
 ## Status Legend

@@ -506,7 +506,7 @@ async function handleInspectorClick(event) {
   await refresh();
 }
 
-async function handleInspectorInput(event) {
+function handleInspectorInput(event) {
   const field = event.target.dataset.field;
   if (!field) return;
   const layer = selectedLayer();
@@ -521,7 +521,7 @@ async function handleInspectorInput(event) {
   if (field === "maskWidth") maskSettings.width = Number(event.target.value);
   if (field === "maskHardness") maskSettings.hardness = Number(event.target.value);
   scheduleSave();
-  await refresh();
+  requestEditorPreview();
 }
 
 function toggleLayerPanel() {
