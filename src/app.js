@@ -1,6 +1,6 @@
 import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js";
 import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js";
-import { applyReferenceGesture, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
+import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
 import {
   ASPECT_PRESETS,
   BLEND_MODES,
@@ -33,7 +33,7 @@ let saveTimer = 0;
 let renderToken = 0;
 let activeCorner = -1;
 let activeStroke = null;
-let gestureStart = null;
+let handleStart = null;
 let maskSession = null;
 let brushCursor = null;
 let previewFrame = 0;
@@ -1066,8 +1066,13 @@ function pointerDown(event) {
     pickLayerColour(point).catch(showError);
   }
   if (project.mode === MODES.COMPOSE_REFERENCE && selectedLayer()?.kind === "reference-item") {
-    interactionRollback = { type: "reference", layer: selectedLayer(), transform: { ...selectedLayer().transform } };
-    resetGesture();
+    const layer = selectedLayer();
+    interactionRollback = { type: "reference", layer, transform: { ...layer.transform } };
+    const handle = referenceHandleAt(point, layer, elements.stage.clientWidth, elements.stage.clientHeight);
+    if (handle) {
+      handleStart = { transform: { ...layer.transform }, point, handle };
+      return;
+    }
   }
 }
 
@@ -1122,8 +1127,8 @@ function pointerMove(event) {
     }
     requestEditorPreview();
   }
-  if (gestureStart) {
-    selectedLayer().transform = applyReferenceGesture(gestureStart.transform, gestureStart.gesture, gestureFromPointers(pointers));
+  if (handleStart) {
+    selectedLayer().transform = applyReferenceHandle(handleStart.transform, handleStart.point, point, handleStart.handle);
     refresh();
   }
 }
@@ -1143,8 +1148,7 @@ function pointerUp(event) {
     drawInteraction();
     return;
   }
-  if (pointers.size && gestureStart) resetGesture();
-  else gestureStart = null;
+  handleStart = null;
   if (activeCorner >= 0 && !rectificationSession || activeStroke) scheduleSave();
   if (maskSession?.lastPoint) {
     maskSession.lastPoint = null;
@@ -1211,7 +1215,7 @@ function cancelProvisionalInteraction() {
   interactionRollback = null;
   activeCorner = -1;
   activeStroke = null;
-  gestureStart = null;
+  handleStart = null;
   brushCursor = null;
   elements.loupe.hidden = true;
 }
@@ -1336,10 +1340,6 @@ async function pickLayerColour(point) {
   await refresh();
 }
 
-function resetGesture() {
-  gestureStart = { transform: { ...selectedLayer().transform }, gesture: gestureFromPointers(pointers) };
-}
-
 function updateCorner(point) {
   project.projection.quad[activeCorner] = point;
   project.projection.confidence = 1;
@@ -1443,6 +1443,7 @@ function drawReferenceSelection(context, width, height) {
   const item = selectedLayer();
   if (item?.kind !== "reference-item") return;
   const bounds = referenceBounds(item, width, height);
+  const handles = referenceSelectionHandles(item, width, height);
   context.save();
   context.translate(bounds.x, bounds.y);
   context.rotate(item.transform.rotation);
@@ -1451,6 +1452,54 @@ function drawReferenceSelection(context, width, height) {
   context.setLineDash([7, 5]);
   context.strokeRect(-bounds.width / 2, -bounds.height / 2, bounds.width, bounds.height);
   context.restore();
+  context.save();
+  context.strokeStyle = "#49d6d0";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(bounds.x, bounds.y);
+  context.lineTo(handles.rotate.x, handles.rotate.y);
+  context.stroke();
+  drawReferenceHandle(context, handles.resize, "square");
+  drawReferenceHandle(context, handles.rotate, "circle");
+  context.restore();
+}
+
+function referenceSelectionHandles(item, width, height) {
+  const bounds = referenceBounds(item, width, height);
+  const cosine = Math.cos(item.transform.rotation);
+  const sine = Math.sin(item.transform.rotation);
+  const rotatePoint = (x, y) => ({
+    x: bounds.x + x * cosine - y * sine,
+    y: bounds.y + x * sine + y * cosine,
+  });
+  return {
+    resize: rotatePoint(bounds.width / 2, bounds.height / 2),
+    rotate: rotatePoint(0, -bounds.height / 2 - 36),
+  };
+}
+
+function referenceHandleAt(point, item, width, height) {
+  const handles = referenceSelectionHandles(item, width, height);
+  const pointer = { x: point.x * width, y: point.y * height };
+  for (const [handle, position] of Object.entries(handles)) {
+    if (Math.hypot(pointer.x - position.x, pointer.y - position.y) <= 18) return handle;
+  }
+  return null;
+}
+
+function drawReferenceHandle(context, point, shape) {
+  context.fillStyle = "#fbfaf6";
+  context.strokeStyle = "#202622";
+  context.lineWidth = 2;
+  if (shape === "square") {
+    context.fillRect(point.x - 7, point.y - 7, 14, 14);
+    context.strokeRect(point.x - 7, point.y - 7, 14, 14);
+    return;
+  }
+  context.beginPath();
+  context.arc(point.x, point.y, 8, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
 }
 
 function drawLoupe(point) {

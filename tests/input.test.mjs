@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyReferenceGesture, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
+import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
 import { referenceSourcePoint } from "../src/canonical.js";
 
 test("pointer coordinates normalize and clamp to an element", () => {
@@ -43,18 +43,16 @@ test("corner hit testing chooses only a nearby corner", () => {
   assert.equal(nearestCorner({ x: 0.5, y: 0.5 }, quad), -1);
 });
 
-test("two-pointer gestures translate, scale, and rotate a reference", () => {
-  const initial = gestureFromPointers(new Map([[1, { x: 0.2, y: 0.4 }], [2, { x: 0.4, y: 0.4 }]]));
-  const current = gestureFromPointers(new Map([[1, { x: 0.3, y: 0.4 }], [2, { x: 0.3, y: 0.8 }]]));
-  const transform = applyReferenceGesture(
-    { x: 0.5, y: 0.5, scale: 1, rotation: 0, flipX: false },
-    initial,
-    current,
-  );
-  assert.ok(Math.abs(transform.x - 0.5) < 1e-9);
-  assert.ok(Math.abs(transform.y - 0.7) < 1e-9);
-  assert.ok(Math.abs(transform.scale - 2) < 1e-9);
-  assert.ok(Math.abs(transform.rotation - Math.PI / 2) < 1e-9);
+test("reference handles resize or rotate around the existing centre", () => {
+  const initial = { x: 0.5, y: 0.5, scale: 1, rotation: 0.2, flipX: false };
+  const resized = applyReferenceHandle(initial, { x: 0.6, y: 0.5 }, { x: 0.7, y: 0.5 }, "resize");
+  const rotated = applyReferenceHandle(initial, { x: 0.5, y: 0.4 }, { x: 0.6, y: 0.5 }, "rotate");
+
+  assert.deepEqual(resized, { ...initial, scale: 2 });
+  assert.equal(rotated.x, initial.x);
+  assert.equal(rotated.y, initial.y);
+  assert.equal(rotated.scale, initial.scale);
+  assert.ok(Math.abs(rotated.rotation - (initial.rotation + Math.PI / 2)) < 1e-9);
 });
 
 test("canonical points map back into a transformed reference source", () => {

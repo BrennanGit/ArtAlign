@@ -6,7 +6,6 @@
 ---
 
 ## Active Task Stack
-
 - Top (current):
   - (empty)
 - Stack:
@@ -21,14 +20,19 @@
 > - Do not pause at push/pop boundaries.
 
 ---
-
 ## Tasks
 
 <!--
 Format:
 
+
+- [done] 016-reference-transform-controls — Reference Transform Controls (2026-08-11) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: .tracking/016-reference-transform-controls.md, .tracking/meta.md, src/input.js, src/app.js, tests/input.test.mjs
+  Functions: applyReferenceHandle(), pointerDown(), pointerMove(), pointerUp(), drawReferenceSelection()
+  Related: #002, #014
 - [status] NNN-short-slug — Title (YYYY-MM-DD) — Owner
-  Type: feature | refactor | bugfix | research | docs | infra
   Stability: experimental | beta | stable
   Files: path1, path2
   Functions: f1(), f2()
@@ -145,6 +149,13 @@ Format:
   Files: .tracking/015-cancel-create-project.md, index.html, src/app.js
   Functions: bindEvents(), createProjectFromForm()
   Related: #011
+
+- [in-progress] 016-reference-transform-controls — Reference Transform Controls (2026-08-11) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: .tracking/016-reference-transform-controls.md, .tracking/meta.md, src/input.js, src/app.js, tests/input.test.mjs
+  Functions: applyReferenceHandle(), pointerDown(), pointerMove(), pointerUp(), drawReferenceSelection()
+  Related: #002, #014
 
 ---
 

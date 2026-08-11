@@ -57,17 +57,29 @@ export function gestureFromPointers(pointers) {
   };
 }
 
-export function applyReferenceGesture(initialTransform, initialGesture, currentGesture) {
-  const transform = {
-    ...initialTransform,
-    x: initialTransform.x + currentGesture.centre.x - initialGesture.centre.x,
-    y: initialTransform.y + currentGesture.centre.y - initialGesture.centre.y,
+export function applyReferenceHandle(initialTransform, initialPointer, currentPointer, handle) {
+  const initialVector = {
+    x: initialPointer.x - initialTransform.x,
+    y: initialPointer.y - initialTransform.y,
   };
-  if (initialGesture.distance > 0 && currentGesture.distance > 0) {
-    transform.scale = Math.max(0.05, initialTransform.scale * currentGesture.distance / initialGesture.distance);
-    transform.rotation = initialTransform.rotation + currentGesture.angle - initialGesture.angle;
+  const currentVector = {
+    x: currentPointer.x - initialTransform.x,
+    y: currentPointer.y - initialTransform.y,
+  };
+  if (handle === "resize") {
+    const initialDistance = Math.hypot(initialVector.x, initialVector.y);
+    const currentDistance = Math.hypot(currentVector.x, currentVector.y);
+    return {
+      ...initialTransform,
+      scale: Math.max(0.05, initialTransform.scale * currentDistance / Math.max(0.0001, initialDistance)),
+    };
   }
-  return transform;
+  return {
+    ...initialTransform,
+    rotation: initialTransform.rotation
+      + Math.atan2(currentVector.y, currentVector.x)
+      - Math.atan2(initialVector.y, initialVector.x),
+  };
 }
 
 export function zoomViewAt(view, requestedZoom, focus, minimumZoom = 0.25, maximumZoom = 8) {
