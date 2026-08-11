@@ -1,9 +1,13 @@
-export function normalizedPointer(event, element) {
+export function relativePointer(event, element) {
   const bounds = element.getBoundingClientRect();
-  return clampPoint({
+  return {
     x: (event.clientX - bounds.left) / Math.max(1, bounds.width),
     y: (event.clientY - bounds.top) / Math.max(1, bounds.height),
-  });
+  };
+}
+
+export function normalizedPointer(event, element) {
+  return clampPoint(relativePointer(event, element));
 }
 
 export function normalizedPointerSamples(event, element) {
@@ -58,6 +62,13 @@ export function gestureFromPointers(pointers) {
 }
 
 export function applyReferenceHandle(initialTransform, initialPointer, currentPointer, handle) {
+  if (handle === "translate") {
+    return {
+      ...initialTransform,
+      x: initialTransform.x + currentPointer.x - initialPointer.x,
+      y: initialTransform.y + currentPointer.y - initialPointer.y,
+    };
+  }
   const initialVector = {
     x: initialPointer.x - initialTransform.x,
     y: initialPointer.y - initialTransform.y,

@@ -25,14 +25,8 @@
 <!--
 Format:
 
-
-- [done] 016-reference-transform-controls — Reference Transform Controls (2026-08-11) — Owner: agent
-  Type: feature
-  Stability: experimental
-  Files: .tracking/016-reference-transform-controls.md, .tracking/meta.md, src/input.js, src/app.js, tests/input.test.mjs
-  Functions: applyReferenceHandle(), pointerDown(), pointerMove(), pointerUp(), drawReferenceSelection()
-  Related: #002, #014
 - [status] NNN-short-slug — Title (YYYY-MM-DD) — Owner
+  Type: feature | refactor | bugfix | research | docs | infra
   Stability: experimental | beta | stable
   Files: path1, path2
   Functions: f1(), f2()
@@ -150,12 +144,19 @@ Format:
   Functions: bindEvents(), createProjectFromForm()
   Related: #011
 
-- [in-progress] 016-reference-transform-controls — Reference Transform Controls (2026-08-11) — Owner: agent
+- [done] 016-reference-transform-controls — Reference Transform Controls (2026-08-11) — Owner: agent
   Type: feature
   Stability: experimental
   Files: .tracking/016-reference-transform-controls.md, .tracking/meta.md, src/input.js, src/app.js, tests/input.test.mjs
   Functions: applyReferenceHandle(), pointerDown(), pointerMove(), pointerUp(), drawReferenceSelection()
   Related: #002, #014
+
+- [done] 017-field-interaction-layer — Field Interaction Layer (2026-08-11) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: .tracking/017-field-interaction-layer.md, .tracking/meta.md, README.md, index.html, styles.css, src/input.js, src/app.js, tests/input.test.mjs
+  Functions: relativePointer(), applyReferenceHandle(), pointerDown(), pointerMove(), drawInteraction()
+  Related: #003, #014, #016
 
 ---
 

@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
+import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
 import { referenceSourcePoint } from "../src/canonical.js";
 
 test("pointer coordinates normalize and clamp to an element", () => {
   const element = { getBoundingClientRect: () => ({ left: 100, top: 50, width: 400, height: 200 }) };
   assert.deepEqual(normalizedPointer({ clientX: 300, clientY: 100 }, element), { x: 0.5, y: 0.25 });
   assert.deepEqual(normalizedPointer({ clientX: 900, clientY: -10 }, element), { x: 1, y: 0 });
+  assert.deepEqual(relativePointer({ clientX: 900, clientY: -10 }, element), { x: 2, y: -0.3 });
 });
 
 test("pointer sampling retains coalesced movement points", () => {
@@ -45,9 +46,14 @@ test("corner hit testing chooses only a nearby corner", () => {
 
 test("reference handles resize or rotate around the existing centre", () => {
   const initial = { x: 0.5, y: 0.5, scale: 1, rotation: 0.2, flipX: false };
+  const translated = applyReferenceHandle(initial, { x: 0.4, y: 0.5 }, { x: 0.6, y: 0.8 }, "translate");
   const resized = applyReferenceHandle(initial, { x: 0.6, y: 0.5 }, { x: 0.7, y: 0.5 }, "resize");
   const rotated = applyReferenceHandle(initial, { x: 0.5, y: 0.4 }, { x: 0.6, y: 0.5 }, "rotate");
 
+  assert.ok(Math.abs(translated.x - 0.7) < 1e-9);
+  assert.ok(Math.abs(translated.y - 0.8) < 1e-9);
+  assert.equal(translated.scale, initial.scale);
+  assert.equal(translated.rotation, initial.rotation);
   assert.deepEqual(resized, { ...initial, scale: 2 });
   assert.equal(rotated.x, initial.x);
   assert.equal(rotated.y, initial.y);

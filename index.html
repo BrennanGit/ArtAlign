@@ -36,13 +36,13 @@
           <div id="stage" class="stage">
             <canvas id="projectionCanvas" aria-label="Projected painting overlay"></canvas>
             <canvas id="editorCanvas" aria-label="Canonical canvas editor"></canvas>
-            <canvas id="interactionCanvas" aria-label="Editing handles"></canvas>
             <video id="cameraVideo" autoplay muted playsinline></video>
             <canvas id="loupe" class="loupe" width="160" height="160" hidden></canvas>
             <div id="emptyHint" class="empty-hint">
               <button id="addReferenceButton" class="primary">Add a reference</button>
             </div>
           </div>
+          <canvas id="interactionCanvas" aria-label="Editing handles"></canvas>
           <div id="modeChip" class="mode-chip">
             <span id="modeLabel">Canonical canvas</span>
             <button id="finishModeButton" class="mode-done" title="Done" aria-label="Finish current mode" hidden>

@@ -1,6 +1,6 @@
 import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js";
 import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js";
-import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
+import { applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
 import {
   ASPECT_PRESETS,
   BLEND_MODES,
@@ -108,11 +108,11 @@ function bindEvents() {
   elements.inspector.addEventListener("pointermove", updateLayerDrag);
   elements.inspector.addEventListener("pointerup", finishLayerDrag);
   elements.inspector.addEventListener("pointercancel", finishLayerDrag);
-  elements.interactionCanvas.addEventListener("pointerdown", pointerDown);
-  elements.interactionCanvas.addEventListener("pointermove", pointerMove);
-  elements.interactionCanvas.addEventListener("pointerup", pointerUp);
-  elements.interactionCanvas.addEventListener("pointercancel", pointerUp);
-  elements.interactionCanvas.addEventListener("pointerleave", pointerLeave);
+  elements.viewportPanel.addEventListener("pointerdown", pointerDown);
+  elements.viewportPanel.addEventListener("pointermove", pointerMove);
+  elements.viewportPanel.addEventListener("pointerup", pointerUp);
+  elements.viewportPanel.addEventListener("pointercancel", pointerUp);
+  elements.viewportPanel.addEventListener("pointerleave", pointerLeave);
   elements.viewportPanel.addEventListener("wheel", wheelZoom, { passive: false });
   window.addEventListener("resize", drawInteraction);
   document.addEventListener("visibilitychange", () => {
@@ -1009,10 +1009,11 @@ function stopCamera() {
 }
 
 function pointerDown(event) {
-  if (!project) return;
-  elements.interactionCanvas.setPointerCapture(event.pointerId);
-  const point = normalizedPointer(event, elements.interactionCanvas);
-  pointers.set(event.pointerId, point);
+  if (!project || event.target.closest("button, input, select, textarea")) return;
+  elements.viewportPanel.setPointerCapture(event.pointerId);
+  const rawPoint = relativePointer(event, elements.stage);
+  const point = clampPoint(rawPoint);
+  pointers.set(event.pointerId, rawPoint);
   navigationPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   if (navigationPointers.size === 2) {
     beginPinchNavigation();
@@ -1067,10 +1068,12 @@ function pointerDown(event) {
   }
   if (project.mode === MODES.COMPOSE_REFERENCE && selectedLayer()?.kind === "reference-item") {
     const layer = selectedLayer();
-    interactionRollback = { type: "reference", layer, transform: { ...layer.transform } };
-    const handle = referenceHandleAt(point, layer, elements.stage.clientWidth, elements.stage.clientHeight);
-    if (handle) {
-      handleStart = { transform: { ...layer.transform }, point, handle };
+    const stageBounds = elements.stage.getBoundingClientRect();
+    const handle = referenceHandleAt(rawPoint, layer, stageBounds.width, stageBounds.height);
+    const sourcePoint = referenceSourcePoint(layer, rawPoint, stageBounds.width, stageBounds.height);
+    if (handle || insideUnit(sourcePoint)) {
+      interactionRollback = { type: "reference", layer, transform: { ...layer.transform } };
+      handleStart = { transform: { ...layer.transform }, point: rawPoint, handle: handle ?? "translate" };
       return;
     }
   }
@@ -1092,21 +1095,22 @@ function pointerMove(event) {
       photoPanStart.view,
       photoPanStart.pointer,
       { x: event.clientX, y: event.clientY },
-      elements.interactionCanvas.getBoundingClientRect(),
+      { width: elements.stage.clientWidth, height: elements.stage.clientHeight },
     );
     applyCanvasView();
     drawInteraction();
     return;
   }
   if (suppressEditingUntilPointersClear) return;
-  const samples = normalizedPointerSamples(event, elements.interactionCanvas);
+  const rawPoint = relativePointer(event, elements.stage);
+  const samples = normalizedPointerSamples(event, elements.stage);
   const point = samples.at(-1);
   if (project?.mode === MODES.MASK && view === "canonical") {
     brushCursor = point;
     drawInteraction();
   }
   if (!pointers.has(event.pointerId)) return;
-  pointers.set(event.pointerId, point);
+  pointers.set(event.pointerId, rawPoint);
   if (activeCorner >= 0) {
     if (rectificationSession) rectificationSession.quad[activeCorner] = point;
     else updateCorner(point);
@@ -1128,7 +1132,7 @@ function pointerMove(event) {
     requestEditorPreview();
   }
   if (handleStart) {
-    selectedLayer().transform = applyReferenceHandle(handleStart.transform, handleStart.point, point, handleStart.handle);
+    selectedLayer().transform = applyReferenceHandle(handleStart.transform, handleStart.point, rawPoint, handleStart.handle);
     refresh();
   }
 }
@@ -1174,7 +1178,7 @@ function wheelZoom(event) {
   const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
     ? 16
     : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? elements.stage.clientHeight : 1;
-  const focus = zoomFocusFromPointer(event, elements.interactionCanvas);
+  const focus = zoomFocusFromPointer(event, elements.stage);
   const zoom = project.view.zoom * Math.exp(-event.deltaY * deltaScale * 0.0015);
   project.view = zoomViewAt(project.view, zoom, focus);
   applyCanvasView();
@@ -1189,7 +1193,7 @@ function beginPinchNavigation() {
   pinchStart = {
     view: { ...project.view },
     distance: gesture.distance,
-    focus: normalizedPointer({ clientX: gesture.centre.x, clientY: gesture.centre.y }, elements.interactionCanvas),
+    focus: zoomFocusFromPointer({ clientX: gesture.centre.x, clientY: gesture.centre.y }, elements.stage),
   };
   suppressEditingUntilPointersClear = true;
 }
@@ -1348,22 +1352,26 @@ function updateCorner(point) {
 
 function drawInteraction() {
   const canvas = elements.interactionCanvas;
-  const bounds = elements.stage.getBoundingClientRect();
+  const viewportBounds = elements.viewportPanel.getBoundingClientRect();
+  const stageBounds = elements.stage.getBoundingClientRect();
   const scale = Math.min(devicePixelRatio || 1, 2);
-  const pixelWidth = Math.max(1, Math.round(bounds.width * scale));
-  const pixelHeight = Math.max(1, Math.round(bounds.height * scale));
+  const pixelWidth = Math.max(1, Math.round(viewportBounds.width * scale));
+  const pixelHeight = Math.max(1, Math.round(viewportBounds.height * scale));
   if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
     canvas.width = pixelWidth;
     canvas.height = pixelHeight;
   }
   const context = canvas.getContext("2d");
   context.setTransform(scale, 0, 0, scale, 0, 0);
-  context.clearRect(0, 0, bounds.width, bounds.height);
+  context.clearRect(0, 0, viewportBounds.width, viewportBounds.height);
   if (!project) return;
-  if (view === "canonical" && rectificationSession) drawQuad(context, bounds.width, bounds.height, rectificationSession.quad);
-  if (view !== "canonical" && project.mode === MODES.EDIT_CORNERS) drawQuad(context, bounds.width, bounds.height);
-  if (view === "canonical" && project.mode === MODES.COMPOSE_REFERENCE) drawReferenceSelection(context, bounds.width, bounds.height);
-  if (view === "canonical" && project.mode === MODES.MASK && brushCursor) drawMaskCursor(context, bounds.width, bounds.height);
+  context.save();
+  context.translate(stageBounds.left - viewportBounds.left, stageBounds.top - viewportBounds.top);
+  if (view === "canonical" && rectificationSession) drawQuad(context, stageBounds.width, stageBounds.height, rectificationSession.quad);
+  if (view !== "canonical" && project.mode === MODES.EDIT_CORNERS) drawQuad(context, stageBounds.width, stageBounds.height);
+  if (view === "canonical" && project.mode === MODES.COMPOSE_REFERENCE) drawReferenceSelection(context, stageBounds.width, stageBounds.height);
+  if (view === "canonical" && project.mode === MODES.MASK && brushCursor) drawMaskCursor(context, stageBounds.width, stageBounds.height);
+  context.restore();
 }
 
 function drawMaskCursor(context, width, height) {
