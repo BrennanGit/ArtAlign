@@ -98,6 +98,28 @@ We need both directions:
 
 `H^-1` is used to flatten captured paintings back into canonical space.
 
+### Interaction and viewport coordinates
+
+The painting field is larger than the canonical canvas when the canvas is zoomed or
+panned. Pointer input therefore has two normalized forms:
+
+- **Raw stage-relative coordinates** are derived from the pointer's position in the
+    viewport and may be less than `0` or greater than `1`. Wheel and pinch navigation
+    use these coordinates so zoom remains focused on the actual pointer or pinch
+    midpoint, including outside the canvas.
+- **Clamped canonical coordinates** constrain each axis to `0..1`. Drawing, masking,
+    corner movement, and other edits use these coordinates so persistent canvas data
+    remains inside the canonical surface.
+
+Corner handles are selected using distance from the raw pointer position, with a
+finite local circular hit radius. The selected corner is then moved using the
+clamped coordinate; a pointer far outside the canvas must not select a corner merely
+because its position clamps to an edge.
+
+The view transform used for navigation is stored separately as `panX`, `panY`, and
+`zoom`. It changes how the stage is displayed but never changes canonical layer
+geometry or the project homography.
+
 ---
 
 ## 3. Project Setup Workflow

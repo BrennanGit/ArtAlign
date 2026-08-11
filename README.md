@@ -24,7 +24,7 @@ Open `http://localhost:8080`. Projects and image assets are stored locally in In
 
 Mask edits preview continuously while drawing, and the on-canvas cursor shows the current brush footprint. Pointer input retains coalesced pen/touch/mouse samples and smooths the rendered vector path.
 
-Canvas navigation can begin anywhere in the surrounding viewport field. Pinch around a point on touchscreens or use the mouse wheel over the point you want to keep in focus; gestures outside the canvas zoom around its centre. In Photo view, a single-pointer drag pans the canvas, while canonical single-pointer drags remain reserved for drawing and editing.
+Canvas navigation can begin anywhere in the surrounding viewport field. Pinch around a point on touchscreens or use the mouse wheel over the point you want to keep in focus; gestures outside the canvas preserve that off-canvas focus point. In Photo view, a single-pointer drag pans the canvas, while canonical single-pointer drags remain reserved for drawing and editing.
 
 Reference **Rectify** is intended for photographs of physical prints or pages. It retains the original source asset and creates a separate flattened derivative.
 

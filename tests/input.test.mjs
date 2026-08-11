@@ -30,18 +30,20 @@ test("pointer sampling retains coalesced movement points", () => {
   ]);
 });
 
-test("zoom focus uses the pointer inside the canvas and its centre outside", () => {
+test("zoom focus uses raw stage-relative coordinates inside and outside the canvas", () => {
   const element = { getBoundingClientRect: () => ({ left: 100, right: 500, top: 50, bottom: 250, width: 400, height: 200 }) };
 
   assert.deepEqual(zoomFocusFromPointer({ clientX: 300, clientY: 100 }, element), { x: 0.5, y: 0.25 });
-  assert.deepEqual(zoomFocusFromPointer({ clientX: 80, clientY: 100 }, element), { x: 0.5, y: 0.5 });
-  assert.deepEqual(zoomFocusFromPointer({ clientX: 300, clientY: 280 }, element), { x: 0.5, y: 0.5 });
+  assert.deepEqual(zoomFocusFromPointer({ clientX: 80, clientY: 100 }, element), { x: -0.05, y: 0.25 });
+  assert.deepEqual(zoomFocusFromPointer({ clientX: 300, clientY: 280 }, element), { x: 0.5, y: 1.15 });
 });
 
 test("corner hit testing chooses only a nearby corner", () => {
   const quad = [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 }];
   assert.equal(nearestCorner({ x: 0.13, y: 0.12 }, quad), 0);
   assert.equal(nearestCorner({ x: 0.5, y: 0.5 }, quad), -1);
+  assert.equal(nearestCorner({ x: -0.4, y: 0.1 }, quad), -1);
+  assert.equal(nearestCorner({ x: 1.3, y: 0.9 }, quad), -1);
 });
 
 test("reference handles resize or rotate around the existing centre", () => {

@@ -17,14 +17,7 @@ export function normalizedPointerSamples(event, element) {
 }
 
 export function zoomFocusFromPointer(event, element) {
-  const bounds = element.getBoundingClientRect();
-  if (
-    event.clientX < bounds.left
-    || event.clientX > bounds.right
-    || event.clientY < bounds.top
-    || event.clientY > bounds.bottom
-  ) return { x: 0.5, y: 0.5 };
-  return normalizedPointer(event, element);
+  return relativePointer(event, element);
 }
 
 export function clampPoint(point) {

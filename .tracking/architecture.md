@@ -9,6 +9,17 @@
 
 Reference transforms and the project homography must never be merged in persistent state.
 
+### Interaction Coordinates
+
+- **Source pixels** are the intrinsic pixel coordinates of an imported image or camera frame.
+- **Canonical coordinates** are normalized canvas coordinates. Persistent layers, masks, guides, and canvas corner quads use the `[0, 1]` range on each axis.
+- **Observed coordinates** are pixels in the photo or live camera frame. The project homography maps between these and canonical coordinates.
+- **Viewport coordinates** are client-pixel positions in the complete painting field, including space outside the visible canvas.
+- **Raw stage-relative coordinates** convert viewport input into the stage's normalized coordinate system without clamping. Navigation uses these coordinates so wheel and pinch zoom preserve the actual focus point even when it is outside the canvas.
+- **Clamped editing coordinates** clamp raw stage-relative input to `[0, 1]` before changing canonical content or canvas corners. Corner hit testing uses the raw point first, so a handle's generous local circular target cannot extend across unrelated field space.
+
+The stage view transform (`panX`, `panY`, and `zoom`) is a transient navigation transform applied to the rendered stage. It does not alter canonical content, homography data, or source raster coordinates.
+
 ## Runtime Boundaries
 
 - `src/model.js`: serializable project and layer contracts.

@@ -1025,14 +1025,14 @@ function pointerDown(event) {
   }
   if (suppressEditingUntilPointersClear) return;
   if (project.mode === MODES.EDIT_CORNERS && view === "canonical" && rectificationSession) {
-    activeCorner = nearestCorner(point, rectificationSession.quad, 0.12);
+    activeCorner = nearestCorner(rawPoint, rectificationSession.quad, 0.12);
     if (activeCorner >= 0) {
       interactionRollback = { type: "corner", quad: rectificationSession.quad, index: activeCorner, point: { ...rectificationSession.quad[activeCorner] } };
       rectificationSession.quad[activeCorner] = point;
     }
   }
   if (project.mode === MODES.EDIT_CORNERS && view !== "canonical") {
-    activeCorner = nearestCorner(point, project.projection.quad, 0.12);
+    activeCorner = nearestCorner(rawPoint, project.projection.quad, 0.12);
     if (activeCorner >= 0) {
       interactionRollback = { type: "corner", quad: project.projection.quad, index: activeCorner, point: { ...project.projection.quad[activeCorner] } };
       canvasDetectionAbort?.abort();

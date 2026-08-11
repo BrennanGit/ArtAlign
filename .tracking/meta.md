@@ -172,6 +172,13 @@ Format:
   Functions: n/a
   Related: #008
 
+- [done] 020-off-canvas-pinch-handles — Off-Canvas Pinch Focus and Local Corner Handles (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/020-off-canvas-pinch-handles.md, src/input.js, src/app.js, tests/input.test.mjs
+  Functions: zoomFocusFromPointer(), nearestCorner(), beginPinchNavigation(), pointerDown()
+  Related: #003, #017
+
 ---
 
 ## Status Legend
