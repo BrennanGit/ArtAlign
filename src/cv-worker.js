@@ -12,7 +12,7 @@ self.onmessage = async (event) => {
 let openCvPromise = null;
 
 function loadOpenCv(url) {
-  if (self.cv?.Mat) return Promise.resolve(self.cv);
+  if (self.cv?.Mat) return Promise.resolve(normalizeOpenCv(self.cv));
   if (openCvPromise) return openCvPromise;
   openCvPromise = new Promise((resolve, reject) => {
     try {
@@ -21,9 +21,18 @@ function loadOpenCv(url) {
       reject(error);
       return;
     }
-    Promise.resolve(self.cv).then((cv) => waitForRuntime(cv).then(() => resolve(cv), reject), reject);
+    if (self.cv instanceof Promise) {
+      self.cv.then((candidate) => waitForRuntime(candidate).then(() => resolve(normalizeOpenCv(candidate)), reject), reject);
+      return;
+    }
+    waitForRuntime(self.cv).then(() => resolve(normalizeOpenCv(self.cv)), reject);
   });
   return openCvPromise;
+}
+
+function normalizeOpenCv(cv) {
+  if (cv && typeof cv.then === "function") cv.then = undefined;
+  return cv;
 }
 
 function waitForRuntime(cv) {
@@ -46,21 +55,24 @@ function detectCanvasQuad(cv, width, height, pixels, expectedAspect) {
   const gray = new cv.Mat();
   const blurred = new cv.Mat();
   const edges = new cv.Mat();
+  const closed = new cv.Mat();
   const contours = new cv.MatVector();
   const hierarchy = new cv.Mat();
+  const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
   let best = null;
 
   try {
     cv.cvtColor(source, gray, cv.COLOR_RGBA2GRAY);
     cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-    cv.Canny(blurred, edges, 55, 165);
-    cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    cv.Canny(blurred, edges, 25, 75);
+    cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel);
+    cv.findContours(closed, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
     const frameArea = width * height;
     for (let index = 0; index < contours.size(); index += 1) {
       const contour = contours.get(index);
       const approximation = new cv.Mat();
       try {
-        if (Math.abs(cv.contourArea(contour)) < frameArea * 0.025) continue;
+        if (Math.abs(cv.contourArea(contour)) < frameArea * 0.01) continue;
         const perimeter = cv.arcLength(contour, true);
         cv.approxPolyDP(contour, approximation, perimeter * 0.025, true);
         if (approximation.rows !== 4 || !cv.isContourConvex(approximation)) continue;
@@ -87,11 +99,13 @@ function detectCanvasQuad(cv, width, height, pixels, expectedAspect) {
     gray.delete();
     blurred.delete();
     edges.delete();
+    closed.delete();
     contours.delete();
     hierarchy.delete();
+    kernel.delete();
   }
 
-  return best ? { quad: best.quad, confidence: Math.min(1, best.score / 0.55) } : null;
+  return best ? { quad: best.quad, confidence: Math.min(1, best.score / 0.08) } : null;
 }
 
 function scoreQuadCandidate(quad, expectedAspect) {

@@ -1,10 +1,11 @@
 import { homographyFromQuad, isPlausibleQuad, orderCorners, quadArea, smoothQuad } from "./geometry.js";
 
 const OPEN_CV_URL = "https://docs.opencv.org/4.13.0/opencv.js";
+const CV_WORKER_URL = new URL("./cv-worker.js?runtime=3", import.meta.url);
 let openCvPromise = null;
 
 export function loadOpenCv(url = OPEN_CV_URL) {
-  if (globalThis.cv?.Mat) return Promise.resolve(globalThis.cv);
+  if (globalThis.cv?.Mat) return Promise.resolve(normalizeOpenCv(globalThis.cv));
   if (openCvPromise) return openCvPromise;
   openCvPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
@@ -22,7 +23,7 @@ export function loadOpenCv(url = OPEN_CV_URL) {
         const candidate = globalThis.cv instanceof Promise ? await globalThis.cv : globalThis.cv;
         await waitForRuntime(candidate);
         clearTimeout(timeout);
-        resolve(candidate);
+        resolve(normalizeOpenCv(candidate));
       } catch (error) {
         fail(error);
       }
@@ -257,6 +258,11 @@ function waitForRuntime(cv) {
   });
 }
 
+function normalizeOpenCv(cv) {
+  if (cv && typeof cv.then === "function") cv.then = undefined;
+  return cv;
+}
+
 function canvasBlob(canvas) {
   return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not encode rectified image")), "image/png"));
 }
@@ -281,7 +287,7 @@ function detectInWorker(image, expectedAspect, signal) {
 function runCvWorker(payload, transfers, { signal, timeoutMs, timeoutMessage }) {
   if (typeof Worker === "undefined") return Promise.reject(new Error("OpenCV workers are unavailable in this browser."));
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./cv-worker.js", import.meta.url));
+    const worker = new Worker(CV_WORKER_URL);
     const id = `${Date.now()}-${Math.random()}`;
     let settled = false;
     const timeout = setTimeout(() => finish(reject, new Error(timeoutMessage)), timeoutMs);

@@ -1,5 +1,5 @@
 import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js";
-import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js";
+import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js?runtime=3";
 import { applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
 import {
   ASPECT_PRESETS,
@@ -60,6 +60,7 @@ const drawSettings = { tool: "pen", colour: "#e8442e", width: 0.008 };
 const maskSettings = { tool: "erase", width: 0.08, hardness: 0.75 };
 const OVERLAY_OPACITY = 0.72;
 const TRACKING_PROCESSING_LIMIT_MS = 250;
+const MIN_DETECTION_CONFIDENCE = 0.2;
 
 initialize().catch(showError);
 
@@ -248,6 +249,7 @@ async function setView(nextView) {
     canvasDetectionAbort?.abort();
     canvasDetectionAbort = null;
   }
+  if (nextView === "canonical") clearOpenCvIssue();
   if (nextView !== "live" && cameraStream) stopCamera();
   view = nextView;
   const canonical = view === "canonical";
@@ -765,15 +767,25 @@ async function redetectCanvas() {
   project.projection.confidence = 0;
   elements.trackingLabel.textContent = "Searching for canvas...";
   renderer?.setProjection(project.projection.quad, view === "live" ? 0 : OVERLAY_OPACITY);
+  let detectionAccepted = false;
   try {
     const result = await detectCanvasQuad(source, project.canvas.ratioWidth / project.canvas.ratioHeight, 480, { signal: detectionAbort.signal });
     if (view !== detectionView || detectionAbort.signal.aborted) return;
     if (!result) throw new Error("No plausible canvas found");
+    const confidence = Number(result.confidence);
+    const confidencePercent = Number.isFinite(confidence)
+      ? Math.round(Math.min(1, Math.max(0, confidence)) * 100)
+      : 0;
+    if (!Number.isFinite(confidence) || confidence < MIN_DETECTION_CONFIDENCE) {
+      throw new Error(`Canvas candidate was too weak (${confidencePercent}% confidence)`);
+    }
+    detectionAccepted = true;
     project.projection.quad = result.quad;
-    project.projection.confidence = result.confidence;
+    project.projection.confidence = confidence;
     project.projection.tracking = view === "live" ? "tracking" : "detected";
     project.mode = view === "live" ? MODES.VIEW : MODES.EDIT_CORNERS;
-    elements.trackingLabel.textContent = view === "live" ? "Tracking canvas" : "Canvas detected";
+    elements.trackingLabel.textContent = view === "live" ? "Tracking canvas" : `Canvas detected · ${confidencePercent}%`;
+    clearOpenCvIssue();
     renderer?.setProjection(result.quad, OVERLAY_OPACITY);
     drawInteraction();
     scheduleSave();
@@ -782,9 +794,20 @@ async function redetectCanvas() {
     if (error.name === "AbortError" || view !== detectionView) return;
     project.projection.tracking = view === "live" ? "searching" : "manual";
     project.projection.confidence = 0;
-    elements.trackingLabel.textContent = view === "live"
-      ? "Searching for canvas..."
-      : error.message.includes("manually") ? error.message : `${error.message}. Adjust corners manually.`;
+    const noUsableCanvas = error.message.includes("No plausible canvas") || error.message.includes("Canvas candidate was too weak");
+    const trackingSetupFailure = view === "live" && detectionAccepted;
+    reportOpenCvIssue(
+      trackingSetupFailure
+        ? "Tracking setup failed · hold camera steady"
+        : noUsableCanvas
+          ? view === "live" ? "No usable canvas · hold camera steady" : "No usable canvas · adjust corners"
+          : view === "live" ? "Detection failed · searching again" : "Detection failed · adjust corners",
+      error,
+    );
+    const recoveryHint = trackingSetupFailure
+      ? "Adjust corners or Redetect."
+      : view === "live" ? "Searching again." : "Adjust corners manually.";
+    elements.trackingLabel.textContent = error.message.includes("manually") ? error.message : `${error.message}. ${recoveryHint}`;
     renderer?.setProjection(project.projection.quad, view === "live" ? 0 : OVERLAY_OPACITY);
     drawInteraction();
     if (view === "live") scheduleReacquisition();
@@ -837,6 +860,7 @@ function trackLiveFrame() {
       stopLiveTracking();
       renderer?.setProjection(project.projection.quad, OVERLAY_OPACITY);
       elements.trackingLabel.textContent = "Tracking paused to keep this device responsive. Adjust corners or Redetect.";
+      reportOpenCvIssue("Tracking paused · device is busy", new Error(`OpenCV tracking took ${Math.round(processingMs)}ms`));
       drawInteraction();
       return;
     }
@@ -847,20 +871,26 @@ function trackLiveFrame() {
       const opacity = OVERLAY_OPACITY * Math.min(1, result.confidence / 0.65);
       renderer?.setProjection(result.quad, opacity);
       elements.trackingLabel.textContent = `Tracking canvas ${Math.round(result.confidence * 100)}%`;
+      clearOpenCvIssue();
+      drawInteraction();
       queueTrackingFrame(trackingScheduleDelay(processingMs));
       return;
     }
     project.projection.tracking = "searching";
     renderer?.setProjection(project.projection.quad, 0);
     elements.trackingLabel.textContent = "Tracking lost. Searching...";
+    reportOpenCvIssue("Tracking lost · hold camera steady", new Error(`Only ${result.trackedFeatures} features remained`));
     stopLiveTracking();
+    drawInteraction();
     scheduleReacquisition();
   } catch (error) {
     console.warn("Live tracking paused", error);
     project.projection.tracking = "searching";
     renderer?.setProjection(project.projection.quad, 0);
     elements.trackingLabel.textContent = "Searching for canvas...";
+    reportOpenCvIssue("Tracking error · redetect", error);
     stopLiveTracking();
+    drawInteraction();
     scheduleReacquisition();
   }
 }
@@ -946,8 +976,10 @@ async function redetectReference() {
     if (!result) throw new Error("No plausible rectangle found");
     session.quad = result.quad;
     elements.trackingLabel.textContent = "Source image detected. Adjust if needed.";
+    clearOpenCvIssue();
   } catch (error) {
     if (error.name === "AbortError" || rectificationSession !== session) return;
+    reportOpenCvIssue("Reference detection failed · adjust corners", error);
     elements.trackingLabel.textContent = error.message.includes("manually") ? error.message : `${error.message}. Adjust corners manually.`;
   }
   await refresh(false);
@@ -1369,6 +1401,9 @@ function drawInteraction() {
   context.translate(stageBounds.left - viewportBounds.left, stageBounds.top - viewportBounds.top);
   if (view === "canonical" && rectificationSession) drawQuad(context, stageBounds.width, stageBounds.height, rectificationSession.quad);
   if (view !== "canonical" && project.mode === MODES.EDIT_CORNERS) drawQuad(context, stageBounds.width, stageBounds.height);
+  if (view === "live" && project.mode !== MODES.EDIT_CORNERS && project.projection.tracking === "tracking") {
+    drawDetectedQuad(context, stageBounds.width, stageBounds.height);
+  }
   if (view === "canonical" && project.mode === MODES.COMPOSE_REFERENCE) drawReferenceSelection(context, stageBounds.width, stageBounds.height);
   if (view === "canonical" && project.mode === MODES.MASK && brushCursor) drawMaskCursor(context, stageBounds.width, stageBounds.height);
   context.restore();
@@ -1445,6 +1480,22 @@ function drawQuad(context, width, height, quad = project.projection.quad) {
     context.lineTo(point.x, point.y + 5);
     context.stroke();
   }
+}
+
+function drawDetectedQuad(context, width, height, quad = project.projection.quad) {
+  const points = quad.map((point) => ({ x: point.x * width, y: point.y * height }));
+  context.save();
+  context.fillStyle = "rgb(73 214 208 / 11%)";
+  context.strokeStyle = "#49d6d0";
+  context.lineWidth = 3;
+  context.setLineDash([12, 7]);
+  context.beginPath();
+  context.moveTo(points[0].x, points[0].y);
+  for (const point of [...points.slice(1), points[0]]) context.lineTo(point.x, point.y);
+  context.closePath();
+  context.fill();
+  context.stroke();
+  context.restore();
 }
 
 function drawReferenceSelection(context, width, height) {
@@ -1560,6 +1611,23 @@ async function saveNow() {
 function showError(error) {
   console.error(error);
   elements.trackingLabel.textContent = error.message;
+}
+
+function setOpenCvIssue(message, detail = message) {
+  const issue = elements.opencvIssue;
+  if (!issue) return;
+  const text = String(message ?? "").trim();
+  issue.hidden = !text;
+  elements.opencvIssueMessage.textContent = text;
+  issue.title = text ? String(detail ?? text) : "";
+}
+
+function clearOpenCvIssue() {
+  setOpenCvIssue("");
+}
+
+function reportOpenCvIssue(message, error) {
+  setOpenCvIssue(message, error?.message || String(error || message));
 }
 
 function imageFromBlob(blob) {

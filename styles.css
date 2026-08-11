@@ -83,6 +83,11 @@ button svg, .fixed-layer svg { width: 20px; height: 20px; fill: none; stroke: cu
 .mode-done:hover { border-color: var(--signal); }
 .mode-done svg { width: 15px; height: 15px; }
 .status-announcer { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.opencv-issue { position: absolute; z-index: 8; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px; max-width: min(420px, calc(100% - 84px)); padding: 7px 10px 7px 8px; border: 1px solid rgb(255 180 154 / 60%); border-radius: 5px; background: rgb(38 27 24 / 94%); color: #fff4ee; box-shadow: 0 4px 18px rgb(0 0 0 / 28%); font-size: 11px; line-height: 1.2; }
+.opencv-issue-mark { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; border: 1px solid rgb(255 180 154 / 70%); border-radius: 4px; color: #ffb49a; font-size: 9px; font-weight: 700; letter-spacing: .04em; }
+.opencv-issue-copy { min-width: 0; display: flex; flex-wrap: wrap; gap: 5px; align-items: baseline; }
+.opencv-issue-copy strong { color: #ffb49a; font-size: 10px; text-transform: uppercase; }
+.opencv-issue-copy span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .layers-button { position: fixed; z-index: 12; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); width: 48px; height: 48px; min-height: 48px; display: grid; place-items: center; padding: 0; border-color: #747d76; background: rgb(251 250 246 / 96%); box-shadow: 0 8px 26px rgb(0 0 0 / 28%); }
 .layers-button[aria-expanded="true"] { border-color: var(--accent); background: var(--accent); color: white; }
@@ -164,5 +169,6 @@ dialog input, dialog select { min-height: 34px; padding: 0 8px; border: 1px soli
   .layers-button[aria-expanded="true"] { opacity: 0; pointer-events: none; }
   .stage { width: min(100%, calc((100dvh - 58px - env(safe-area-inset-top)) * var(--stage-ratio, 1))); }
   .mode-chip { top: 8px; left: 8px; max-width: calc(100% - 16px); }
+  .opencv-issue { left: 8px; bottom: 8px; max-width: calc(100% - 76px); }
   input, select, textarea { font-size: 16px; }
 }

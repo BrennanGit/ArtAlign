@@ -35,9 +35,13 @@ Reference **Rectify** is intended for photographs of physical prints or pages. I
 - Camera access for Live mode
 - HTTPS for camera access outside `localhost`; GitHub Pages provides HTTPS
 
-OpenCV 4.13 is loaded from the pinned official OpenCV URL when detection, tracking, or rectification is first used. If it cannot load, still/manual corner workflows remain available. For fully offline deployment, vendor the same OpenCV prebuilt and update `OPEN_CV_URL` in `src/cv.js`.
+OpenCV 4.13 is loaded from the pinned official OpenCV URL when detection or tracking is first used. Automatic contour detection waits for the asynchronous runtime inside a disposable, versioned Web Worker so OpenCV cannot block the interface. Rectification uses WebGL and does not require OpenCV. If OpenCV cannot load, still/manual corner workflows remain available. For fully offline deployment, vendor the same OpenCV prebuilt and update `OPEN_CV_URL` in `src/cv.js`.
 
-Automatic contour detection runs in a disposable Web Worker so OpenCV cannot block the interface. Live optical-flow sampling is capped at a responsive cadence and automatically pauses in manual-corner mode if a device exceeds the processing budget.
+Live optical-flow sampling uses the main-thread OpenCV runtime, is capped at a responsive cadence, and automatically pauses in manual-corner mode if a device exceeds the processing budget.
+
+When OpenCV reports a detection or tracking problem, an issue chip appears in the lower-left of the viewport with a concise action and the full runtime detail available on hover.
+
+Photo detection reports its confidence in the workflow status and rejects weak candidates so they cannot silently replace the current corners. Live reacquisition keeps the last OpenCV issue visible until a retry succeeds.
 
 ## Tests
 

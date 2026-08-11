@@ -179,6 +179,34 @@ Format:
   Functions: zoomFocusFromPointer(), nearestCorner(), beginPinchNavigation(), pointerDown()
   Related: #003, #017
 
+- [done] 021-opencv-runtime — OpenCV Runtime Integration (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/021-opencv-runtime.md, index.html, src/app.js, src/cv.js, src/cv-worker.js, tests/cv.test.mjs, README.md
+  Functions: loadOpenCv(), detectCanvasQuad(), runCvWorker(), normalizeOpenCv(), CanvasTracker.initialize()
+  Related: #001
+
+- [done] 022-opencv-status-chip — OpenCV Status Chip (2026-08-11) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: .tracking/022-opencv-status-chip.md, index.html, styles.css, src/app.js, README.md
+  Functions: setOpenCvIssue(), clearOpenCvIssue(), redetectCanvas(), trackLiveFrame(), redetectReference()
+  Related: #021
+
+- [done] 023-fixture-canvas-detection — Fixture Canvas Detection (2026-08-11) — Owner: agent
+  Type: bugfix
+  Stability: experimental
+  Files: .tracking/023-fixture-canvas-detection.md, src/cv-worker.js, src/cv.js, tests/cv.test.mjs
+  Functions: detectCanvasQuad(), detectInWorker(), scoreQuadCandidate()
+  Related: #021, #022
+
+- [done] 024-live-canvas-overlay — Live Canvas Overlay (2026-08-11) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: .tracking/024-live-canvas-overlay.md, src/app.js
+  Functions: drawInteraction(), drawDetectedQuad(), trackLiveFrame()
+  Related: #023
+
 ---
 
 ## Status Legend

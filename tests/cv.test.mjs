@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { trackingConfidence, trackingScheduleDelay } from "../src/cv.js";
+import { loadOpenCv, trackingConfidence, trackingScheduleDelay } from "../src/cv.js";
 
 const square = [
   { x: 0.1, y: 0.1 },
@@ -9,6 +9,28 @@ const square = [
   { x: 0.9, y: 0.9 },
   { x: 0.1, y: 0.9 },
 ];
+
+test("OpenCV thenable runtimes resolve without hanging", async () => {
+  const previousCv = globalThis.cv;
+  const runtime = {
+    Mat: class Mat {},
+    then(resolve) {
+      resolve(this);
+    },
+  };
+  globalThis.cv = runtime;
+  try {
+    const loaded = await Promise.race([
+      loadOpenCv(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("OpenCV runtime test timed out")), 1000)),
+    ]);
+    assert.equal(loaded, runtime);
+    assert.equal(runtime.then, undefined);
+  } finally {
+    if (previousCv === undefined) delete globalThis.cv;
+    else globalThis.cv = previousCv;
+  }
+});
 
 test("tracking confidence rewards stable, numerous low-error features", () => {
   const stable = trackingConfidence({ totalFeatures: 60, trackedFeatures: 52, meanError: 2, quad: square, previousQuad: square });
