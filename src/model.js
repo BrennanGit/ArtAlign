@@ -102,12 +102,49 @@ export function createCaptureLayer(assetId, name, dimensions) {
     name,
     assetId,
     dimensions: { width: dimensions.width, height: dimensions.height },
+    placement: { x: 0.5, y: 0.5, width: 1, height: 1 },
     visible: true,
     opacity: 1,
     blendMode: "normal",
     colourKey: defaultColourKey(),
     maskAssetId: null,
   };
+}
+
+export function resizeProjectCanvas(project, ratioWidth, ratioHeight) {
+  assertPositiveRatio(ratioWidth, ratioHeight);
+  const { ratioWidth: oldWidth, ratioHeight: oldHeight } = project.canvas;
+  if (oldWidth === ratioWidth && oldHeight === ratioHeight) return false;
+  const mapX = (value) => 0.5 + (value - 0.5) * oldWidth / ratioWidth;
+  const mapY = (value) => 0.5 + (value - 0.5) * oldHeight / ratioHeight;
+  for (const item of project.referenceGroup.children) {
+    item.transform.x = mapX(item.transform.x);
+    item.transform.y = mapY(item.transform.y);
+    const oldFit = Math.min(oldWidth / item.dimensions.width, oldHeight / item.dimensions.height);
+    const newFit = Math.min(ratioWidth / item.dimensions.width, ratioHeight / item.dimensions.height);
+    item.transform.scale *= oldFit / newFit;
+  }
+  for (const layer of project.layers) {
+    if (layer.kind === "capture") {
+      const placement = layer.placement ?? { x: 0.5, y: 0.5, width: 1, height: 1 };
+      layer.placement = {
+        x: mapX(placement.x), y: mapY(placement.y),
+        width: placement.width * oldWidth / ratioWidth,
+        height: placement.height * oldHeight / ratioHeight,
+      };
+    }
+    if (layer.kind === "scribble") {
+      for (const stroke of layer.strokes) {
+        for (const point of stroke.points) {
+          point.x = mapX(point.x);
+          point.y = mapY(point.y);
+        }
+        stroke.width *= Math.min(oldWidth, oldHeight) / Math.min(ratioWidth, ratioHeight);
+      }
+    }
+  }
+  project.canvas = { ratioWidth, ratioHeight, resolution: canonicalResolution(ratioWidth, ratioHeight) };
+  return true;
 }
 
 export function createScribbleLayer(name = "Scribble") {

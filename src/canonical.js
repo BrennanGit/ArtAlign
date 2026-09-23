@@ -89,11 +89,12 @@ export class CanonicalCompositor {
     const image = await this.assetCache.get(layer.assetId);
     if (!image) return;
     const mask = options.maskOverrideId === layer.id ? options.maskOverride : await this.assetCache.get(layer.maskAssetId);
-    const prepared = prepareRaster(image, mask, layer.colourKey, width, height, options.forceOpaqueId === layer.id);
+    const prepared = prepareRaster(image, mask, layer.colourKey, layer.dimensions.width, layer.dimensions.height, options.forceOpaqueId === layer.id);
+    const placement = layer.placement ?? { x: 0.5, y: 0.5, width: 1, height: 1 };
     this.context.save();
     this.context.globalAlpha = options.forceOpaqueId === layer.id ? 1 : layer.opacity;
     this.context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
-    this.context.drawImage(prepared, 0, 0, width, height);
+    this.context.drawImage(prepared, (placement.x - placement.width / 2) * width, (placement.y - placement.height / 2) * height, placement.width * width, placement.height * height);
     this.context.restore();
   }
 
@@ -114,6 +115,9 @@ export class CanonicalCompositor {
       layerContext.moveTo(first.x * width, first.y * height);
       if (stroke.points.length === 1) {
         layerContext.lineTo(first.x * width + 0.01, first.y * height);
+      } else if (stroke.tool === "line") {
+        const end = stroke.points[1];
+        layerContext.lineTo(end.x * width, end.y * height);
       } else {
         for (let index = 1; index < stroke.points.length - 1; index += 1) {
           const point = stroke.points[index];

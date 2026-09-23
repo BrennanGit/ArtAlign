@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   canonicalResolution,
   createCaptureLayer,
+  resizeProjectCanvas,
   createProject,
   createReferenceItem,
   createScribbleLayer,
@@ -39,7 +40,37 @@ test("maskable raster factories retain source and mask assets independently", ()
   assert.equal(reference.maskAssetId, null);
   assert.equal(capture.assetId, "asset-capture");
   assert.equal(capture.maskAssetId, null);
+  assert.deepEqual(capture.placement, { x: 0.5, y: 0.5, width: 1, height: 1 });
   assert.notEqual(reference.colourKey, capture.colourKey);
+});
+
+test("resizing keeps references, captures and strokes centered at their original physical size", () => {
+  const project = createProject({ name: "Resize", ratioWidth: 4, ratioHeight: 3 });
+  const reference = createReferenceItem("ref", { width: 800, height: 400 });
+  reference.transform.x = 0.75;
+  reference.transform.y = 0.25;
+  const capture = createCaptureLayer("capture", "Capture", project.canvas.resolution);
+  const drawing = createScribbleLayer();
+  drawing.strokes.push({ tool: "pen", width: 0.02, points: [{ x: 0.75, y: 0.25 }, { x: 0.5, y: 0.5 }] });
+  project.referenceGroup.children.push(reference);
+  project.layers.push(capture, drawing);
+
+  assert.equal(resizeProjectCanvas(project, 8, 3), true);
+  assert.deepEqual(project.canvas.resolution, { width: 1800, height: 675 });
+  assert.equal(reference.transform.x, 0.625);
+  assert.equal(reference.transform.y, 0.25);
+  assert.ok(Math.abs(reference.transform.scale - 2 / 3) < 1e-12);
+  assert.deepEqual(capture.placement, { x: 0.5, y: 0.5, width: 0.5, height: 1 });
+  assert.deepEqual(drawing.strokes[0].points, [{ x: 0.625, y: 0.25 }, { x: 0.5, y: 0.5 }]);
+  assert.equal(drawing.strokes[0].width, 0.02);
+
+  assert.equal(resizeProjectCanvas(project, 8, 6), true);
+  assert.equal(reference.transform.y, 0.375);
+  assert.equal(reference.transform.scale, 0.5);
+  assert.deepEqual(capture.placement, { x: 0.5, y: 0.5, width: 0.5, height: 0.5 });
+  assert.equal(drawing.strokes[0].width, 0.01);
+  assert.equal(resizeProjectCanvas(project, 8, 6), false);
+  assert.throws(() => resizeProjectCanvas(project, -1, 2), /positive numbers/);
 });
 
 test("invalid canvas ratios are rejected", () => {

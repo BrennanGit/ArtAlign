@@ -15,6 +15,7 @@ import {
   makeId,
   moveLayer,
   removeLayer,
+  resizeProjectCanvas,
   touchProject,
 } from "./model.js";
 import { ProjectionRenderer } from "./renderer.js";
@@ -109,6 +110,9 @@ function bindEvents() {
   elements.photoButton.addEventListener("click", () => togglePhotoView().catch(showError));
   elements.liveButton.addEventListener("click", () => toggleLiveView().catch(showError));
   elements.exportButton.addEventListener("click", () => exportCanvas().catch(showError));
+  elements.canvasSizeButton.addEventListener("click", openCanvasSizeDialog);
+  elements.canvasSizeForm.addEventListener("submit", applyCanvasSize);
+  elements.cancelCanvasSizeButton.addEventListener("click", () => elements.canvasSizeDialog.close());
   elements.finishModeButton.addEventListener("click", () => finishCurrentMode().catch(showError));
   elements.layersButton.addEventListener("click", toggleLayerPanel);
   elements.layerDialog.addEventListener("click", handleLayerTypeClick);
@@ -163,6 +167,27 @@ async function createProjectFromForm(event) {
   await store.saveProject(created);
   elements.projectDialog.close();
   await openProject(created.id);
+}
+
+function openCanvasSizeDialog() {
+  setViewMenuOpen(false);
+  elements.canvasSizeForm.elements.ratioWidth.value = project.canvas.ratioWidth;
+  elements.canvasSizeForm.elements.ratioHeight.value = project.canvas.ratioHeight;
+  elements.canvasSizeDialog.showModal();
+}
+
+async function applyCanvasSize(event) {
+  event.preventDefault();
+  const values = new FormData(elements.canvasSizeForm);
+  try {
+    if (resizeProjectCanvas(project, Number(values.get("ratioWidth")), Number(values.get("ratioHeight")))) {
+      await setView(view);
+      scheduleSave();
+    }
+    elements.canvasSizeDialog.close();
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function renderProjectList() {
@@ -290,8 +315,8 @@ async function setView(nextView) {
   }
   elements.photoButton.classList.toggle("active", view === "photo");
   elements.liveButton.classList.toggle("active", view === "live");
-  elements.photoButton.textContent = view === "photo" ? "Return from photo" : "Photo view";
-  elements.liveButton.textContent = view === "live" ? "Return from camera" : "Live camera";
+  elements.photoButton.textContent = "Project onto photo";
+  elements.liveButton.textContent = "Project onto video";
   applyCanvasView();
   await refresh();
 }
@@ -422,7 +447,11 @@ function renderInspector() {
     <button data-action="mask-reset">Reset mask</button>
   ` : "";
   const scribbleControls = selected?.kind === "scribble" ? `
-    <div class="control-row"><button data-action="pen" class="${drawSettings.tool === "pen" ? "primary" : ""}">Pen</button><button data-action="eraser" class="${drawSettings.tool === "eraser" ? "primary" : ""}">Eraser</button></div>
+    <div class="control-row three drawing-tools">
+      <button data-action="pen" class="${drawSettings.tool === "pen" ? "primary" : ""}" title="Pen" aria-label="Pen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 8l3 3"/></svg></button>
+      <button data-action="line" class="${drawSettings.tool === "line" ? "primary" : ""}" title="Straight line" aria-label="Straight line"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19 19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg></button>
+      <button data-action="eraser" class="${drawSettings.tool === "eraser" ? "primary" : ""}" title="Eraser" aria-label="Eraser"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 20-4-4 11-11a2 2 0 0 1 3 0l4 4a2 2 0 0 1 4 0l-8 8zM7 20h14M10 9l7 7"/></svg></button>
+    </div>
     <label class="control">Colour<input data-field="drawColour" type="color" value="${drawSettings.colour}"></label>
     <label class="control">Width<input data-field="drawWidth" type="range" min="0.002" max="0.05" step="0.002" value="${drawSettings.width}"></label>
     <button data-action="clear">Clear drawing</button>
@@ -541,7 +570,7 @@ async function handleInspectorClick(event) {
   if (action === "centre") Object.assign(layer.transform, { x: 0.5, y: 0.5 });
   if (action === "reset") Object.assign(layer.transform, { x: 0.5, y: 0.5, scale: 1, rotation: 0, flipX: false });
   if (action === "flip") layer.transform.flipX = !layer.transform.flipX;
-  if (action === "pen" || action === "eraser") drawSettings.tool = action;
+  if (action === "pen" || action === "line" || action === "eraser") drawSettings.tool = action;
   if (action === "clear") layer.strokes = [];
   scheduleSave();
   await refresh();
@@ -1114,7 +1143,7 @@ function pointerDown(event) {
     const layer = selectedLayer();
     if (layer?.kind !== "scribble") return;
     interactionRollback = { type: "stroke", layer };
-    activeStroke = { tool: drawSettings.tool, colour: drawSettings.colour, width: drawSettings.width, opacity: 1, points: [point] };
+    activeStroke = { tool: drawSettings.tool, colour: drawSettings.colour, width: drawSettings.width, opacity: 1, points: drawSettings.tool === "line" ? [point, { ...point }] : [point] };
     layer.strokes.push(activeStroke);
   }
   if (project.mode === MODES.MASK && view === "canonical" && maskSession) {
@@ -1181,7 +1210,8 @@ function pointerMove(event) {
     drawInteraction();
   }
   if (activeStroke) {
-    for (const sample of samples) appendDistinctPoint(activeStroke.points, sample);
+    if (activeStroke.tool === "line") activeStroke.points[1] = point;
+    else for (const sample of samples) appendDistinctPoint(activeStroke.points, sample);
     requestEditorPreview();
   }
   if (project.mode === MODES.MASK && maskSession?.lastPoint) {
@@ -1215,6 +1245,17 @@ function pointerUp(event) {
     return;
   }
   handleStart = null;
+  if (activeStroke?.tool === "line") {
+    if (event.type === "pointercancel") cancelProvisionalInteraction();
+    else {
+      activeStroke.points[1] = clampPoint(relativePointer(event, elements.stage));
+      if (activeStroke.points[0].x === activeStroke.points[1].x && activeStroke.points[0].y === activeStroke.points[1].y) {
+        selectedLayer().strokes.pop();
+        activeStroke = null;
+      }
+    }
+    requestEditorPreview();
+  }
   if (activeCorner >= 0 && !rectificationSession || activeStroke) scheduleSave();
   if (maskSession?.lastPoint) {
     maskSession.lastPoint = null;
@@ -1294,7 +1335,7 @@ function applyCanvasView() {
 
 async function beginMaskSession(layer) {
   if (!isRasterLayer(layer)) return;
-  const dimensions = layer.kind === "reference-item" ? layer.dimensions : project.canvas.resolution;
+  const dimensions = layer.dimensions;
   const canvas = document.createElement("canvas");
   canvas.width = dimensions.width;
   canvas.height = dimensions.height;
@@ -1314,7 +1355,12 @@ async function beginMaskSession(layer) {
 
 function maskPoint(point, layer) {
   const canonical = project.canvas.resolution;
-  return layer.kind === "reference-item" ? referenceSourcePoint(layer, point, canonical.width, canonical.height) : point;
+  if (layer.kind === "reference-item") return referenceSourcePoint(layer, point, canonical.width, canonical.height);
+  const placement = layer.placement ?? { x: 0.5, y: 0.5, width: 1, height: 1 };
+  return {
+    x: (point.x - placement.x) / placement.width + 0.5,
+    y: (point.y - placement.y) / placement.height + 0.5,
+  };
 }
 
 function paintMaskPoint(point) {

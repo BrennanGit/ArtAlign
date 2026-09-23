@@ -22,6 +22,30 @@
 ---
 ## Tasks
 
+- [done] 029-source-link — Source Link (2026-09-23) — Owner: agent
+  Type: feature
+  Files: index.html, styles.css
+  Functions: n/a
+  Related: none
+
+- [done] 030-resize-canvas — Resize Canvas Plane (2026-09-23) — Owner: agent
+  Type: feature
+  Files: src/model.js, src/canonical.js, src/app.js, index.html, tests/model.test.mjs, tests/canvas-resize.test.mjs, README.md
+  Functions: resizeProjectCanvas(), applyCanvasSize(), CanonicalCompositor.rebuild(), maskPoint()
+  Related: none
+
+- [done] 031-straight-line — Straight Line Tool (2026-09-23) — Owner: agent
+  Type: feature
+  Files: src/app.js, src/canonical.js, styles.css, tests/canvas-resize.test.mjs, README.md
+  Functions: pointerDown(), pointerMove(), pointerUp(), CanonicalCompositor.rebuild()
+  Related: none
+
+- [done] 032-view-names — View Names (2026-09-23) — Owner: agent
+  Type: feature
+  Files: index.html, src/app.js
+  Functions: setView()
+  Related: none
+
 - [done] 026-view-menu-history-export — View Menu, Export, and Global History (2026-09-23) — Owner: agent
   Type: feature
   Stability: experimental
