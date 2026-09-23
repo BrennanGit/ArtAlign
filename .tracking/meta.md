@@ -22,6 +22,24 @@
 ---
 ## Tasks
 
+- [done] 033-header-menu — Header Menu (2026-09-23) — Owner: agent
+  Type: feature
+  Files: index.html, styles.css
+  Functions: n/a
+  Related: none
+
+- [done] 034-navigation-history — Exclude Navigation from History (2026-09-23) — Owner: agent
+  Type: bugfix
+  Files: src/history.js, src/app.js, tests/history.test.mjs
+  Functions: snapshot(), restoreHistory()
+  Related: #026
+
+- [done] 035-layer-list-scroll — Layer List Touch Scrolling (2026-09-23) — Owner: agent
+  Type: bugfix
+  Files: styles.css, src/app.js
+  Functions: beginLayerDrag(), updateLayerDrag(), finishLayerDrag(), renderInspector()
+  Related: #025
+
 - [done] 029-source-link — Source Link (2026-09-23) — Owner: agent
   Type: feature
   Files: index.html, styles.css

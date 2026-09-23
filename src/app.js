@@ -19,7 +19,7 @@ import {
   touchProject,
 } from "./model.js";
 import { ProjectionRenderer } from "./renderer.js";
-import { ProjectHistory } from "./history.js";
+import { ProjectHistory } from "./history.js?runtime=2";
 import { MemoryProjectStore, ProjectStore } from "./store.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -734,12 +734,22 @@ function beginLayerDrag(event) {
     row,
     startX: event.clientX,
     startY: event.clientY,
+    lastY: event.clientY,
+    startScrollTop: elements.inspector.scrollTop,
     startIndex: collection?.indexOf(layer) ?? -1,
     originalOpacity: layer.opacity,
-    rowHeight: Math.max(44, row.getBoundingClientRect().height),
+    rowHeight: Math.max(44, row.getBoundingClientRect().height + 4),
     direction: null,
     moved: false,
+    changed: false,
   };
+  if (collection) {
+    layerDrag.holdTimer = setTimeout(() => {
+      if (layerDrag?.pointerId !== event.pointerId || layerDrag.direction) return;
+      layerDrag.direction = "reorder";
+      layerDrag.row.classList.add("dragging");
+    }, 300);
+  }
   elements.inspector.setPointerCapture(event.pointerId);
 }
 
@@ -748,13 +758,16 @@ function updateLayerDrag(event) {
   const deltaX = event.clientX - layerDrag.startX;
   const deltaY = event.clientY - layerDrag.startY;
   if (!layerDrag.direction && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
-    const canReorder = layerCollection(project, layerDrag.layerId);
-    layerDrag.direction = Math.abs(deltaX) >= Math.abs(deltaY) || !canReorder ? "opacity" : "reorder";
+    clearTimeout(layerDrag.holdTimer);
+    layerDrag.direction = Math.abs(deltaX) >= Math.abs(deltaY) ? "opacity" : event.pointerType === "touch" ? "scroll" : "idle";
     layerDrag.moved = true;
   }
+  if (layerDrag.direction === "scroll") elements.inspector.scrollTop -= event.clientY - layerDrag.lastY;
+  layerDrag.lastY = event.clientY;
   if (layerDrag.direction === "opacity") {
     const layer = findLayer(layerDrag.layerId);
     layer.opacity = Math.max(0, Math.min(1, layerDrag.originalOpacity + deltaX / Math.max(160, layerDrag.row.clientWidth)));
+    layerDrag.changed = layer.opacity !== layerDrag.originalOpacity;
     const percent = Math.round(layer.opacity * 100);
     layerDrag.row.style.setProperty("--layer-opacity", `${percent}%`);
     const value = layerDrag.row.querySelector(".layer-name span");
@@ -762,24 +775,62 @@ function updateLayerDrag(event) {
     requestEditorPreview();
   }
   if (layerDrag.direction === "reorder") {
-    const steps = Math.round(deltaY / layerDrag.rowHeight);
-    if (moveLayer(project, layerDrag.layerId, layerDrag.startIndex - steps)) {
-      renderInspector();
-      requestEditorPreview();
-    }
+    updateLayerReorder();
+    if (Math.abs(deltaY) >= 8) updateLayerEdgeScroll();
   }
+}
+
+function updateLayerReorder() {
+  const steps = Math.round((layerDrag.lastY - layerDrag.startY + elements.inspector.scrollTop - layerDrag.startScrollTop) / layerDrag.rowHeight);
+  if (!moveLayer(project, layerDrag.layerId, layerDrag.startIndex - steps)) return;
+  layerDrag.moved = true;
+  layerDrag.changed = true;
+  renderInspector();
+  layerDrag.row = elements.inspector.querySelector(`[data-layer-id="${layerDrag.layerId}"]`);
+  layerDrag.row.classList.add("dragging");
+  requestEditorPreview();
+}
+
+function updateLayerEdgeScroll() {
+  if (!layerDrag || layerDrag.direction !== "reorder") return;
+  const inspector = elements.inspector;
+  const bounds = inspector.getBoundingClientRect();
+  const top = bounds.top + inspector.querySelector(".layer-panel-header").offsetHeight + 8;
+  const bottom = bounds.bottom - 28;
+  const edge = 36;
+  const speed = layerDrag.lastY < top + edge ? -Math.min(12, (top + edge - layerDrag.lastY) / 3)
+    : layerDrag.lastY > bottom - edge ? Math.min(12, (layerDrag.lastY - bottom + edge) / 3) : 0;
+  if (!speed || layerDrag.edgeFrame) return;
+  layerDrag.edgeFrame = requestAnimationFrame(() => {
+    if (!layerDrag || layerDrag.direction !== "reorder") return;
+    layerDrag.edgeFrame = 0;
+    const list = inspector.querySelector(".layer-list");
+    const maxScroll = Math.min(inspector.scrollHeight - inspector.clientHeight, list.offsetTop + list.offsetHeight - inspector.clientHeight + 24);
+    const previous = inspector.scrollTop;
+    inspector.scrollTop = Math.max(0, Math.min(maxScroll, previous + speed));
+    if (inspector.scrollTop !== previous) {
+      updateLayerReorder();
+      updateLayerEdgeScroll();
+    }
+  });
 }
 
 function finishLayerDrag(event) {
   if (!layerDrag || event.pointerId !== layerDrag.pointerId) return;
   if (elements.inspector.hasPointerCapture(event.pointerId)) elements.inspector.releasePointerCapture(event.pointerId);
-  const moved = layerDrag.moved;
+  clearTimeout(layerDrag.holdTimer);
+  cancelAnimationFrame(layerDrag.edgeFrame);
+  layerDrag.row.classList.remove("dragging");
+  const moved = layerDrag.moved || layerDrag.direction === "reorder";
+  const changed = layerDrag.changed;
   layerDrag = null;
   if (!moved) return;
   suppressInspectorClick = true;
   setTimeout(() => { suppressInspectorClick = false; }, 0);
-  scheduleSave();
-  refresh().catch(showError);
+  if (changed) {
+    scheduleSave();
+    refresh().catch(showError);
+  }
 }
 
 async function togglePhotoView() {
@@ -1689,7 +1740,7 @@ async function restoreHistory(direction) {
   navigationPointers.clear();
   pinchStart = null;
   photoPanStart = null;
-  project = { ...restored, updatedAt: project.updatedAt, lastOpenedAt: project.lastOpenedAt };
+  project = { ...restored, view: project.view, updatedAt: project.updatedAt, lastOpenedAt: project.lastOpenedAt };
   editingLayerId = findLayer(project.activeLayerId)?.id ?? null;
   elements.projectName.textContent = project.name;
   background = null;

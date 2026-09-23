@@ -46,5 +46,6 @@ function snapshot(project) {
   const copy = structuredClone(project);
   delete copy.updatedAt;
   delete copy.lastOpenedAt;
+  delete copy.view;
   return JSON.stringify(copy);
 }

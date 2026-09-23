@@ -19,15 +19,23 @@ test("project history restores actions and discards redo after a new edit", () =
   assert.equal(history.canRedo, false);
 });
 
-test("continuous edits group into one undo, timestamps do not create actions", () => {
+test("navigation and timestamps do not create actions or clear redo", () => {
   const project = createProject({ name: "Study", ratioWidth: 1, ratioHeight: 1 });
   const history = new ProjectHistory(project, 2);
   project.updatedAt = "later";
   assert.equal(history.record(project), false);
   project.view.zoom = 2;
-  history.record(project, "zoom");
+  assert.equal(history.record(project, "zoom"), false);
+  project.view.panX = 0.25;
   project.view.zoom = 3;
-  history.record(project, "zoom");
-  assert.equal(history.undo().view.zoom, 1);
-  assert.equal(history.redo().view.zoom, 3);
+  assert.equal(history.record(project, "zoom"), false);
+  assert.equal(history.canUndo, false);
+  project.name = "Edited";
+  assert.equal(history.record(project), true);
+  project.name = history.undo().name;
+  assert.equal(project.name, "Study");
+  project.view.panY = 0.5;
+  assert.equal(history.record(project), false);
+  assert.equal(history.canRedo, true);
+  assert.equal(history.redo().name, "Edited");
 });
