@@ -51,6 +51,8 @@ test("resizing keeps references, captures and strokes centered at their original
   reference.transform.y = 0.25;
   const capture = createCaptureLayer("capture", "Capture", project.canvas.resolution);
   const drawing = createScribbleLayer();
+  drawing.transform.x = 0.75;
+  drawing.transform.y = 0.25;
   drawing.strokes.push({ tool: "pen", width: 0.02, points: [{ x: 0.75, y: 0.25 }, { x: 0.5, y: 0.5 }] });
   project.referenceGroup.children.push(reference);
   project.layers.push(capture, drawing);
@@ -62,6 +64,7 @@ test("resizing keeps references, captures and strokes centered at their original
   assert.ok(Math.abs(reference.transform.scale - 2 / 3) < 1e-12);
   assert.deepEqual(capture.placement, { x: 0.5, y: 0.5, width: 0.5, height: 1 });
   assert.deepEqual(drawing.strokes[0].points, [{ x: 0.625, y: 0.25 }, { x: 0.5, y: 0.5 }]);
+  assert.deepEqual({ x: drawing.transform.x, y: drawing.transform.y }, { x: 0.625, y: 0.25 });
   assert.equal(drawing.strokes[0].width, 0.02);
 
   assert.equal(resizeProjectCanvas(project, 8, 6), true);
@@ -69,6 +72,7 @@ test("resizing keeps references, captures and strokes centered at their original
   assert.equal(reference.transform.scale, 0.5);
   assert.deepEqual(capture.placement, { x: 0.5, y: 0.5, width: 0.5, height: 0.5 });
   assert.equal(drawing.strokes[0].width, 0.01);
+  assert.deepEqual({ x: drawing.transform.x, y: drawing.transform.y }, { x: 0.625, y: 0.375 });
   assert.equal(resizeProjectCanvas(project, 8, 6), false);
   assert.throws(() => resizeProjectCanvas(project, -1, 2), /positive numbers/);
 });

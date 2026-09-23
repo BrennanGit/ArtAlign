@@ -54,7 +54,7 @@ export function gestureFromPointers(pointers) {
   };
 }
 
-export function applyReferenceHandle(initialTransform, initialPointer, currentPointer, handle) {
+export function applyReferenceHandle(initialTransform, initialPointer, currentPointer, handle, bounds = { width: 1, height: 1 }) {
   if (handle === "translate") {
     return {
       ...initialTransform,
@@ -63,12 +63,12 @@ export function applyReferenceHandle(initialTransform, initialPointer, currentPo
     };
   }
   const initialVector = {
-    x: initialPointer.x - initialTransform.x,
-    y: initialPointer.y - initialTransform.y,
+    x: (initialPointer.x - initialTransform.x) * bounds.width,
+    y: (initialPointer.y - initialTransform.y) * bounds.height,
   };
   const currentVector = {
-    x: currentPointer.x - initialTransform.x,
-    y: currentPointer.y - initialTransform.y,
+    x: (currentPointer.x - initialTransform.x) * bounds.width,
+    y: (currentPointer.y - initialTransform.y) * bounds.height,
   };
   if (handle === "resize") {
     const initialDistance = Math.hypot(initialVector.x, initialVector.y);
@@ -83,6 +83,22 @@ export function applyReferenceHandle(initialTransform, initialPointer, currentPo
     rotation: initialTransform.rotation
       + Math.atan2(currentVector.y, currentVector.x)
       - Math.atan2(initialVector.y, initialVector.x),
+  };
+}
+
+export function applyLinkedTransform(target, primary, next, bounds) {
+  const scale = next.scale / primary.scale;
+  const angle = next.rotation - primary.rotation;
+  const offsetX = (target.x - primary.x) * bounds.width;
+  const offsetY = (target.y - primary.y) * bounds.height;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  return {
+    ...target,
+    x: next.x + scale * (offsetX * cosine - offsetY * sine) / bounds.width,
+    y: next.y + scale * (offsetX * sine + offsetY * cosine) / bounds.height,
+    scale: target.scale * scale,
+    rotation: target.rotation + angle,
   };
 }
 

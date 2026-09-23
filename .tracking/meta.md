@@ -22,6 +22,18 @@
 ---
 ## Tasks
 
+- [done] 036-drawing-transform — Drawing Transform (2026-09-23) — Owner: agent
+  Type: feature
+  Files: src/model.js, src/canonical.js, src/app.js, tests/input.test.mjs, tests/canvas-resize.test.mjs, README.md
+  Functions: createScribbleLayer(), layerSourcePoint(), pointerDown(), pointerMove()
+  Related: #016
+
+- [done] 037-linked-layer-transform — Linked Layer Transform (2026-09-23) — Owner: agent
+  Type: feature
+  Files: src/model.js, src/canonical.js, src/input.js, src/app.js, styles.css, tests/input.test.mjs, README.md
+  Functions: applyLinkedTransform(), layerRow(), pointerDown(), pointerMove()
+  Related: #036
+
 - [done] 033-header-menu — Header Menu (2026-09-23) — Owner: agent
   Type: feature
   Files: index.html, styles.css

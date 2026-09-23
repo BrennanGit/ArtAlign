@@ -134,6 +134,10 @@ button svg, .fixed-layer svg { width: 20px; height: 20px; fill: none; stroke: cu
 .colour-picker-row { display: grid; grid-template-columns: 1fr 34px; gap: 6px; }
 .layer-list { display: grid; gap: 4px; }
 .layer-row { --layer-opacity: 100%; position: relative; isolation: isolate; min-height: 44px; display: grid; grid-template-columns: 34px minmax(0, 1fr) repeat(3, 32px); align-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 4px; background: white; touch-action: pan-y; }
+.layer-row.linking { grid-template-columns: 34px 28px minmax(0, 1fr) repeat(3, 32px); }
+.transform-link { width: 28px; height: 44px; display: grid; place-items: center; cursor: pointer; }
+.transform-link input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent-dark); cursor: pointer; }
+.transform-link input:disabled { cursor: default; }
 .layer-row::before { content: ""; position: absolute; z-index: -1; inset: 0 auto 0 0; width: var(--layer-opacity); background: rgb(73 214 208 / 16%); pointer-events: none; }
 .layer-row.active { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
 .layer-row.editing { background: #fffaf6; }

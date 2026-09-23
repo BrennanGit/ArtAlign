@@ -1,6 +1,6 @@
-import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js?runtime=4";
+import { AssetCache, CanonicalCompositor, layerSourcePoint, referenceBounds, referenceSourcePoint } from "./canonical.js?runtime=5";
 import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js?runtime=3";
-import { applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js?runtime=4";
+import { applyLinkedTransform, applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js?runtime=5";
 import {
   ASPECT_PRESETS,
   BLEND_MODES,
@@ -58,6 +58,7 @@ let pinchStart = null;
 let photoPanStart = null;
 let suppressEditingUntilPointersClear = false;
 let interactionRollback = null;
+const linkedLayerIds = new Set();
 const pointers = new Map();
 const navigationPointers = new Map();
 const drawSettings = { tool: "pen", colour: "#e8442e", width: 0.008 };
@@ -121,7 +122,7 @@ function bindEvents() {
   elements.photoInput.addEventListener("change", importPhoto);
   elements.inspector.addEventListener("click", handleInspectorClick);
   elements.inspector.addEventListener("input", handleInspectorInput);
-  elements.inspector.addEventListener("change", () => history?.endGroup());
+  elements.inspector.addEventListener("change", handleInspectorChange);
   elements.inspector.addEventListener("keydown", handleInspectorKeyDown);
   elements.inspector.addEventListener("pointerdown", beginLayerDrag);
   elements.inspector.addEventListener("pointermove", updateLayerDrag);
@@ -235,6 +236,7 @@ async function closeProject() {
   stopCamera();
   closeLayerPanel();
   await saveNow();
+  linkedLayerIds.clear();
   project = null;
   history = null;
   elements.workspaceView.hidden = true;
@@ -377,10 +379,12 @@ async function refresh(rebuild = true, updateControls = true) {
 }
 
 function updateModeChip() {
+  if (project.mode !== MODES.TRANSFORM && project.mode !== MODES.COMPOSE_REFERENCE) linkedLayerIds.clear();
   const canonicalView = view === "canonical" && project.mode === MODES.VIEW && !rectificationSession;
   const labels = {
     [MODES.VIEW]: "Canonical canvas",
     [MODES.COMPOSE_REFERENCE]: "Reference",
+    [MODES.TRANSFORM]: selectedLayer()?.kind === "scribble" ? "Transform drawing" : "Transform layer",
     [MODES.EDIT_CORNERS]: "Edit corners",
     [MODES.DRAW]: "Drawing",
     [MODES.MASK]: "Mask",
@@ -403,6 +407,7 @@ async function finishCurrentMode() {
     brushCursor = null;
   }
   editingLayerId = null;
+  linkedLayerIds.clear();
   project.mode = MODES.VIEW;
   await setView("canonical");
   scheduleSave();
@@ -447,6 +452,7 @@ function renderInspector() {
     <button data-action="mask-reset">Reset mask</button>
   ` : "";
   const scribbleControls = selected?.kind === "scribble" ? `
+    <button data-action="drawing-transform" class="${project.mode === MODES.TRANSFORM ? "primary" : ""}">${project.mode === MODES.TRANSFORM ? "Back to drawing" : "Transform drawing"}</button>
     <div class="control-row three drawing-tools">
       <button data-action="pen" class="${drawSettings.tool === "pen" ? "primary" : ""}" title="Pen" aria-label="Pen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 8l3 3"/></svg></button>
       <button data-action="line" class="${drawSettings.tool === "line" ? "primary" : ""}" title="Straight line" aria-label="Straight line"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19 19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg></button>
@@ -455,6 +461,9 @@ function renderInspector() {
     <label class="control">Colour<input data-field="drawColour" type="color" value="${drawSettings.colour}"></label>
     <label class="control">Width<input data-field="drawWidth" type="range" min="0.002" max="0.05" step="0.002" value="${drawSettings.width}"></label>
     <button data-action="clear">Clear drawing</button>
+  ` : "";
+  const otherTransformControls = selected?.kind === "capture" || selected?.kind === "guide" ? `
+    <button data-action="layer-transform" class="${project.mode === MODES.TRANSFORM ? "primary" : ""}">${project.mode === MODES.TRANSFORM ? "Done transforming" : "Transform layer"}</button>
   ` : "";
   const guideControls = selected?.kind === "guide" ? `
     <label class="control">Horizontal divisions<input data-field="horizontal" type="number" min="0" max="100" step="1" value="${selected.horizontal}"></label>
@@ -470,7 +479,7 @@ function renderInspector() {
   elements.inspector.innerHTML = `
     ${panelHeader("Layers", true)}
     <div class="layer-list">${layerRows()}</div>
-    ${editingLayerId === selected?.id ? `<div class="layer-editor"><div class="editor-heading"><strong>${escapeHtml(selected.name)}</strong><span>${titleCase(selected.kind)}</span></div>${common}${referenceControls}${referenceGroupControls}${colourKeyControls}${maskControls}${scribbleControls}${guideControls}${projectionControls}</div>` : projectionControls ? `<div class="layer-editor">${projectionControls}</div>` : ""}
+    ${editingLayerId === selected?.id ? `<div class="layer-editor"><div class="editor-heading"><strong>${escapeHtml(selected.name)}</strong><span>${titleCase(selected.kind)}</span></div>${common}${referenceControls}${referenceGroupControls}${colourKeyControls}${maskControls}${scribbleControls}${otherTransformControls}${guideControls}${projectionControls}</div>` : projectionControls ? `<div class="layer-editor">${projectionControls}</div>` : ""}
   `;
 }
 
@@ -489,9 +498,14 @@ function layerRow(layer, nested = false, fixed = false) {
   const editing = editingLayerId === layer.id;
   const renaming = renamingLayerId === layer.id;
   const percent = Math.round(layer.opacity * 100);
+  const linking = project.mode === MODES.COMPOSE_REFERENCE || project.mode === MODES.TRANSFORM;
+  const checked = layer.kind === "reference-group"
+    ? layer.children.length > 0 && layer.children.every((child) => child.id === project.activeLayerId || linkedLayerIds.has(child.id))
+    : layer.id === project.activeLayerId || linkedLayerIds.has(layer.id);
   return `
-    <div class="layer-row ${active ? "active" : ""} ${editing ? "editing" : ""} ${nested ? "nested" : ""}" data-layer-id="${layer.id}" data-fixed="${fixed}" style="--layer-opacity:${percent}%">
+    <div class="layer-row ${active ? "active" : ""} ${editing ? "editing" : ""} ${nested ? "nested" : ""} ${linking ? "linking" : ""}" data-layer-id="${layer.id}" data-fixed="${fixed}" style="--layer-opacity:${percent}%">
       <button class="visibility mini-icon-button" data-visible="${layer.id}" title="${layer.visible ? "Hide" : "Show"} ${escapeHtml(layer.name)}" aria-label="${layer.visible ? "Hide" : "Show"} ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24">${layer.visible ? `<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>` : `<path d="m3 3 18 18M10.6 6.2A11 11 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-2.1 2.8M6.7 6.7C3.6 8.6 2 12 2 12s3.5 6 10 6a10 10 0 0 0 4.2-.9"/>`}</svg></button>
+      ${linking ? `<label class="transform-link" title="Move ${escapeHtml(layer.name)} together"><input type="checkbox" data-transform-link="${layer.id}" aria-label="Move ${escapeHtml(layer.name)} together" ${checked ? "checked" : ""} ${active || layer.kind === "reference-group" && !layer.children.length ? "disabled" : ""}></label>` : ""}
       ${renaming ? `<input class="layer-rename-input" data-rename-input="${layer.id}" value="${escapeHtml(layer.name)}" aria-label="Layer name">` : `<button class="layer-name" data-select="${layer.id}"><strong>${escapeHtml(layer.name)}</strong><span>${percent}%</span></button>`}
       <button class="mini-icon-button" data-action="edit-layer" data-layer-action-id="${layer.id}" title="Edit ${escapeHtml(layer.name)}" aria-label="Edit ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 8l3 3"/></svg></button>
       <button class="mini-icon-button" data-action="rename-layer" data-layer-action-id="${layer.id}" title="${renaming ? "Save" : "Rename"} ${escapeHtml(layer.name)}" aria-label="${renaming ? "Save" : "Rename"} ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24">${renaming ? `<path d="M5 12l4 4L19 6"/>` : `<path d="M4 20h16M14 4l6 6M5 17l2-6L16 2l6 6-9 9z"/>`}</svg></button>
@@ -506,6 +520,10 @@ async function handleInspectorClick(event) {
   const visibleId = event.target.closest("[data-visible]")?.dataset.visible;
   if (selectId) {
     project.activeLayerId = selectId;
+    if (project.mode === MODES.COMPOSE_REFERENCE || project.mode === MODES.TRANSFORM) {
+      const kind = findLayer(selectId)?.kind;
+      project.mode = kind === "reference-item" ? MODES.COMPOSE_REFERENCE : kind === "reference-group" ? MODES.VIEW : MODES.TRANSFORM;
+    }
     scheduleSave();
     renderInspector();
     drawInteraction();
@@ -544,6 +562,7 @@ async function handleInspectorClick(event) {
   if (action === "done-reference") {
     project.activeLayerId = project.referenceGroup.id;
     project.mode = MODES.VIEW;
+    linkedLayerIds.clear();
     scheduleSave();
     return refresh();
   }
@@ -566,11 +585,29 @@ async function handleInspectorClick(event) {
     return;
   }
   if (action === "mask-reset") return resetMask();
+  if (action === "drawing-transform") {
+    linkedLayerIds.clear();
+    project.mode = project.mode === MODES.TRANSFORM ? MODES.DRAW : MODES.TRANSFORM;
+    scheduleSave();
+    return refresh(false);
+  }
+  if (action === "layer-transform") {
+    linkedLayerIds.clear();
+    project.mode = project.mode === MODES.TRANSFORM ? MODES.VIEW : MODES.TRANSFORM;
+    scheduleSave();
+    return refresh(false);
+  }
   if (action === "fit") layer.transform.scale = 1;
   if (action === "centre") Object.assign(layer.transform, { x: 0.5, y: 0.5 });
   if (action === "reset") Object.assign(layer.transform, { x: 0.5, y: 0.5, scale: 1, rotation: 0, flipX: false });
   if (action === "flip") layer.transform.flipX = !layer.transform.flipX;
-  if (action === "pen" || action === "line" || action === "eraser") drawSettings.tool = action;
+  if (action === "pen" || action === "line" || action === "eraser") {
+    drawSettings.tool = action;
+    if (project.mode === MODES.TRANSFORM) {
+      project.mode = MODES.DRAW;
+      linkedLayerIds.clear();
+    }
+  }
   if (action === "clear") layer.strokes = [];
   scheduleSave();
   await refresh();
@@ -595,6 +632,21 @@ function handleInspectorInput(event) {
   if (field === "thickness") layer.thickness = Number(event.target.value);
   scheduleSave(`field:${field}`);
   requestEditorPreview();
+}
+
+function handleInspectorChange(event) {
+  const layerId = event.target.dataset.transformLink;
+  if (layerId) {
+    const layer = findLayer(layerId);
+    const targets = layer?.kind === "reference-group" ? layer.children : layer ? [layer] : [];
+    for (const target of targets) {
+      if (target.id === project.activeLayerId) continue;
+      if (event.target.checked) linkedLayerIds.add(target.id);
+      else linkedLayerIds.delete(target.id);
+    }
+    renderInspector();
+  }
+  history?.endGroup();
 }
 
 function toggleLayerPanel() {
@@ -653,6 +705,7 @@ async function handleLayerTypeClick(event) {
 async function editLayer(layerId) {
   const layer = findLayer(layerId);
   if (!layer) return;
+  linkedLayerIds.clear();
   if (layer.kind === "reference-group") {
     const child = layer.children.at(-1);
     if (!child) {
@@ -715,6 +768,7 @@ async function deleteLayer(layerId) {
   if (maskSession?.layerId === layer.id) maskSession = null;
   const removed = removeLayer(project, layerId);
   if (!removed) return;
+  linkedLayerIds.delete(layerId);
   if (editingLayerId === layerId) editingLayerId = null;
   if (renamingLayerId === layerId) renamingLayerId = null;
   project.mode = MODES.VIEW;
@@ -1194,7 +1248,8 @@ function pointerDown(event) {
     const layer = selectedLayer();
     if (layer?.kind !== "scribble") return;
     interactionRollback = { type: "stroke", layer };
-    activeStroke = { tool: drawSettings.tool, colour: drawSettings.colour, width: drawSettings.width, opacity: 1, points: drawSettings.tool === "line" ? [point, { ...point }] : [point] };
+    const sourcePoint = layerSourcePoint(layer, point, elements.stage.clientWidth, elements.stage.clientHeight);
+    activeStroke = { tool: drawSettings.tool, colour: drawSettings.colour, width: drawSettings.width, opacity: 1, points: drawSettings.tool === "line" ? [sourcePoint, { ...sourcePoint }] : [sourcePoint] };
     layer.strokes.push(activeStroke);
   }
   if (project.mode === MODES.MASK && view === "canonical" && maskSession) {
@@ -1208,14 +1263,20 @@ function pointerDown(event) {
   if (project.mode === MODES.EYEDROPPER && view === "canonical" && isRasterLayer(selectedLayer())) {
     pickLayerColour(point).catch(showError);
   }
-  if (project.mode === MODES.COMPOSE_REFERENCE && selectedLayer()?.kind === "reference-item") {
+  if ((project.mode === MODES.COMPOSE_REFERENCE && selectedLayer()?.kind === "reference-item")
+    || (project.mode === MODES.TRANSFORM && ["scribble", "capture", "guide"].includes(selectedLayer()?.kind))) {
     const layer = selectedLayer();
     const stageBounds = elements.stage.getBoundingClientRect();
-    const handle = referenceHandleAt(rawPoint, layer, stageBounds.width, stageBounds.height);
-    const sourcePoint = referenceSourcePoint(layer, rawPoint, stageBounds.width, stageBounds.height);
+    const selection = selectionItem(layer, stageBounds.width, stageBounds.height);
+    const handle = referenceHandleAt(rawPoint, selection, stageBounds.width, stageBounds.height);
+    const sourcePoint = layer.kind === "reference-item"
+      ? referenceSourcePoint(layer, rawPoint, stageBounds.width, stageBounds.height)
+      : layerSourcePoint(layer, rawPoint, stageBounds.width, stageBounds.height);
     if (handle || insideUnit(sourcePoint)) {
-      interactionRollback = { type: "reference", layer, transform: { ...layer.transform } };
-      handleStart = { transform: { ...layer.transform }, point: rawPoint, handle: handle ?? "translate" };
+      const originals = [layer, ...[...linkedLayerIds].map(findLayer).filter((target) => target && target.id !== layer.id)]
+        .map((target) => ({ layer: target, transform: target.transform ? { ...target.transform } : null }));
+      interactionRollback = { type: "layers", originals };
+      handleStart = { transform: selection.transform, point: rawPoint, handle: handle ?? "translate", originals };
       return;
     }
   }
@@ -1261,8 +1322,10 @@ function pointerMove(event) {
     drawInteraction();
   }
   if (activeStroke) {
-    if (activeStroke.tool === "line") activeStroke.points[1] = point;
-    else for (const sample of samples) appendDistinctPoint(activeStroke.points, sample);
+    const layer = selectedLayer();
+    const toSource = (sample) => layerSourcePoint(layer, sample, elements.stage.clientWidth, elements.stage.clientHeight);
+    if (activeStroke.tool === "line") activeStroke.points[1] = toSource(point);
+    else for (const sample of samples) appendDistinctPoint(activeStroke.points, toSource(sample));
     requestEditorPreview();
   }
   if (project.mode === MODES.MASK && maskSession?.lastPoint) {
@@ -1275,8 +1338,13 @@ function pointerMove(event) {
     requestEditorPreview();
   }
   if (handleStart) {
-    selectedLayer().transform = applyReferenceHandle(handleStart.transform, handleStart.point, rawPoint, handleStart.handle);
-    refresh();
+    const bounds = elements.stage.getBoundingClientRect();
+    const next = applyReferenceHandle(handleStart.transform, handleStart.point, rawPoint, handleStart.handle, bounds);
+    for (const { layer, transform } of handleStart.originals) {
+      layer.transform = layer.id === project.activeLayerId ? next : applyLinkedTransform(transform ?? { x: 0.5, y: 0.5, scale: 1, rotation: 0 }, handleStart.transform, next, bounds);
+    }
+    requestEditorPreview();
+    drawInteraction();
   }
 }
 
@@ -1299,7 +1367,7 @@ function pointerUp(event) {
   if (activeStroke?.tool === "line") {
     if (event.type === "pointercancel") cancelProvisionalInteraction();
     else {
-      activeStroke.points[1] = clampPoint(relativePointer(event, elements.stage));
+      activeStroke.points[1] = layerSourcePoint(selectedLayer(), clampPoint(relativePointer(event, elements.stage)), elements.stage.clientWidth, elements.stage.clientHeight);
       if (activeStroke.points[0].x === activeStroke.points[1].x && activeStroke.points[0].y === activeStroke.points[1].y) {
         selectedLayer().strokes.pop();
         activeStroke = null;
@@ -1365,8 +1433,11 @@ function cancelProvisionalInteraction() {
     maskSession.lastPoint = null;
     requestEditorPreview();
   }
-  if (interactionRollback?.type === "reference") {
-    interactionRollback.layer.transform = interactionRollback.transform;
+  if (interactionRollback?.type === "layers") {
+    for (const { layer, transform } of interactionRollback.originals) {
+      if (transform) layer.transform = transform;
+      else delete layer.transform;
+    }
     requestEditorPreview();
   }
   interactionRollback = null;
@@ -1407,10 +1478,11 @@ async function beginMaskSession(layer) {
 function maskPoint(point, layer) {
   const canonical = project.canvas.resolution;
   if (layer.kind === "reference-item") return referenceSourcePoint(layer, point, canonical.width, canonical.height);
+  const sourcePoint = layerSourcePoint(layer, point, canonical.width, canonical.height);
   const placement = layer.placement ?? { x: 0.5, y: 0.5, width: 1, height: 1 };
   return {
-    x: (point.x - placement.x) / placement.width + 0.5,
-    y: (point.y - placement.y) / placement.height + 0.5,
+    x: (sourcePoint.x - placement.x) / placement.width + 0.5,
+    y: (sourcePoint.y - placement.y) / placement.height + 0.5,
   };
 }
 
@@ -1513,7 +1585,7 @@ function drawInteraction() {
   if (view === "live" && project.mode !== MODES.EDIT_CORNERS && project.projection.tracking === "tracking") {
     drawDetectedQuad(context, stageBounds.width, stageBounds.height);
   }
-  if (view === "canonical" && project.mode === MODES.COMPOSE_REFERENCE) drawReferenceSelection(context, stageBounds.width, stageBounds.height);
+  if (view === "canonical" && (project.mode === MODES.COMPOSE_REFERENCE || project.mode === MODES.TRANSFORM)) drawReferenceSelection(context, stageBounds.width, stageBounds.height);
   if (view === "canonical" && project.mode === MODES.MASK && brushCursor) drawMaskCursor(context, stageBounds.width, stageBounds.height);
   context.restore();
 }
@@ -1608,8 +1680,10 @@ function drawDetectedQuad(context, width, height, quad = project.projection.quad
 }
 
 function drawReferenceSelection(context, width, height) {
-  const item = selectedLayer();
-  if (item?.kind !== "reference-item") return;
+  const layer = selectedLayer();
+  if (project.mode === MODES.COMPOSE_REFERENCE && layer?.kind !== "reference-item"
+    || project.mode === MODES.TRANSFORM && !["scribble", "capture", "guide"].includes(layer?.kind)) return;
+  const item = selectionItem(layer, width, height);
   const bounds = referenceBounds(item, width, height);
   const handles = referenceSelectionHandles(item, width, height);
   context.save();
@@ -1632,6 +1706,10 @@ function drawReferenceSelection(context, width, height) {
   context.restore();
 }
 
+function selectionItem(layer, width, height) {
+  return layer.kind === "reference-item" ? layer : { ...layer, dimensions: { width, height }, transform: layer.transform ?? { x: 0.5, y: 0.5, scale: 1, rotation: 0 } };
+}
+
 function referenceSelectionHandles(item, width, height) {
   const bounds = referenceBounds(item, width, height);
   const cosine = Math.cos(item.transform.rotation);
@@ -1640,9 +1718,12 @@ function referenceSelectionHandles(item, width, height) {
     x: bounds.x + x * cosine - y * sine,
     y: bounds.y + x * sine + y * cosine,
   });
+  const outside = rotatePoint(0, -bounds.height / 2 - 36);
+  const stageTop = elements.stage.getBoundingClientRect().top;
+  const viewportTop = elements.viewportPanel.getBoundingClientRect().top;
   return {
     resize: rotatePoint(bounds.width / 2, bounds.height / 2),
-    rotate: rotatePoint(0, -bounds.height / 2 - 36),
+    rotate: stageTop + outside.y < viewportTop + 18 ? rotatePoint(0, -bounds.height / 2 + 36) : outside,
   };
 }
 
@@ -1736,6 +1817,7 @@ async function restoreHistory(direction) {
   rectificationSession = null;
   maskSession = null;
   cancelProvisionalInteraction();
+  linkedLayerIds.clear();
   pointers.clear();
   navigationPointers.clear();
   pinchStart = null;

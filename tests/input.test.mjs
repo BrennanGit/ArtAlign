@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
-import { referenceSourcePoint } from "../src/canonical.js";
+import { applyLinkedTransform, applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
+import { layerSourcePoint, referenceSourcePoint } from "../src/canonical.js";
 
 test("pointer coordinates normalize and clamp to an element", () => {
   const element = { getBoundingClientRect: () => ({ left: 100, top: 50, width: 400, height: 200 }) };
@@ -63,6 +63,25 @@ test("reference handles resize or rotate around the existing centre", () => {
   assert.ok(Math.abs(rotated.rotation - (initial.rotation + Math.PI / 2)) < 1e-9);
 });
 
+test("linked transforms rotate and scale around the active layer in pixel space", () => {
+  const primary = { x: 0.5, y: 0.5, scale: 1, rotation: 0 };
+  const target = { x: 0.6, y: 0.5, scale: 0.8, rotation: 0.1, flipX: true };
+  const next = { x: 0.55, y: 0.6, scale: 2, rotation: Math.PI / 2 };
+  const linked = applyLinkedTransform(target, primary, next, { width: 1000, height: 500 });
+  assert.ok(Math.abs(linked.x - 0.55) < 1e-12);
+  assert.ok(Math.abs(linked.y - 1) < 1e-12);
+  assert.equal(linked.scale, 1.6);
+  assert.equal(linked.rotation, 0.1 + Math.PI / 2);
+  assert.equal(linked.flipX, true);
+  assert.deepEqual(target, { x: 0.6, y: 0.5, scale: 0.8, rotation: 0.1, flipX: true });
+});
+
+test("rotation handle uses physical canvas aspect ratio", () => {
+  const transform = { x: 0.5, y: 0.5, scale: 1, rotation: 0 };
+  const next = applyReferenceHandle(transform, { x: 0.6, y: 0.5 }, { x: 0.5, y: 0.7 }, "rotate", { width: 1000, height: 500 });
+  assert.ok(Math.abs(next.rotation - Math.PI / 2) < 1e-12);
+});
+
 test("canonical points map back into a transformed reference source", () => {
   const item = {
     dimensions: { width: 400, height: 200 },
@@ -70,6 +89,14 @@ test("canonical points map back into a transformed reference source", () => {
   };
   assert.deepEqual(referenceSourcePoint(item, { x: 0.5, y: 0.5 }, 1000, 1000), { x: 0.5, y: 0.5 });
   assert.deepEqual(referenceSourcePoint({ ...item, transform: { ...item.transform, flipX: true } }, { x: 0.6, y: 0.5 }, 1000, 1000), { x: 0.3, y: 0.5 });
+});
+
+test("drawing input maps back through its layer transform on a rectangular canvas", () => {
+  const layer = { transform: { x: 0.6, y: 0.4, scale: 2, rotation: Math.PI / 2 } };
+  const point = layerSourcePoint(layer, { x: 0.6, y: 0.6 }, 1000, 500);
+  assert.ok(Math.abs(point.x - 0.55) < 1e-12);
+  assert.ok(Math.abs(point.y - 0.5) < 1e-12);
+  assert.deepEqual(layerSourcePoint({}, { x: 0.2, y: 0.7 }, 1000, 500), { x: 0.2, y: 0.7 });
 });
 
 test("focal zoom preserves the focused canvas point and clamps useful limits", () => {

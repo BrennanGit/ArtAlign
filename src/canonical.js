@@ -94,7 +94,15 @@ export class CanonicalCompositor {
     this.context.save();
     this.context.globalAlpha = options.forceOpaqueId === layer.id ? 1 : layer.opacity;
     this.context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
-    this.context.drawImage(prepared, (placement.x - placement.width / 2) * width, (placement.y - placement.height / 2) * height, placement.width * width, placement.height * height);
+    if (isLayerTransformed(layer.transform)) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(prepared, (placement.x - placement.width / 2) * width, (placement.y - placement.height / 2) * height, placement.width * width, placement.height * height);
+      drawTransformedCanvas(this.context, canvas, layer.transform, width, height);
+    } else {
+      this.context.drawImage(prepared, (placement.x - placement.width / 2) * width, (placement.y - placement.height / 2) * height, placement.width * width, placement.height * height);
+    }
     this.context.restore();
   }
 
@@ -137,26 +145,33 @@ export class CanonicalCompositor {
     this.context.save();
     this.context.globalAlpha = layer.opacity;
     this.context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
-    this.context.drawImage(layerCanvas, 0, 0);
+    drawTransformedCanvas(this.context, layerCanvas, layer.transform, width, height);
     this.context.restore();
   }
 
   #drawGuide(layer, width, height) {
+    const canvas = isLayerTransformed(layer.transform) ? document.createElement("canvas") : null;
+    if (canvas) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const context = canvas ? canvas.getContext("2d") : this.context;
     this.context.save();
     this.context.globalAlpha = layer.opacity;
     this.context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
-    this.context.strokeStyle = layer.colour;
-    this.context.lineWidth = layer.thickness * Math.min(width, height);
-    this.context.beginPath();
+    context.strokeStyle = layer.colour;
+    context.lineWidth = layer.thickness * Math.min(width, height);
+    context.beginPath();
     for (const fraction of guidePositions(layer.horizontal)) {
-      this.context.moveTo(0, fraction * height);
-      this.context.lineTo(width, fraction * height);
+      context.moveTo(0, fraction * height);
+      context.lineTo(width, fraction * height);
     }
     for (const fraction of guidePositions(layer.vertical)) {
-      this.context.moveTo(fraction * width, 0);
-      this.context.lineTo(fraction * width, height);
+      context.moveTo(fraction * width, 0);
+      context.lineTo(fraction * width, height);
     }
-    this.context.stroke();
+    context.stroke();
+    if (canvas) drawTransformedCanvas(this.context, canvas, layer.transform, width, height);
     this.context.restore();
   }
 }
@@ -186,6 +201,30 @@ export function referenceSourcePoint(item, point, canvasWidth, canvasHeight) {
     x: localX / bounds.width + 0.5,
     y: localY / bounds.height + 0.5,
   };
+}
+
+export function layerSourcePoint(layer, point, canvasWidth, canvasHeight) {
+  const { x = 0.5, y = 0.5, scale = 1, rotation = 0 } = layer.transform ?? {};
+  const offsetX = (point.x - x) * canvasWidth;
+  const offsetY = (point.y - y) * canvasHeight;
+  const cosine = Math.cos(rotation);
+  const sine = Math.sin(rotation);
+  return {
+    x: (offsetX * cosine + offsetY * sine) / (scale * canvasWidth) + 0.5,
+    y: (-offsetX * sine + offsetY * cosine) / (scale * canvasHeight) + 0.5,
+  };
+}
+
+function drawTransformedCanvas(context, canvas, transform, width, height) {
+  if (!isLayerTransformed(transform)) return context.drawImage(canvas, 0, 0);
+  context.translate(transform.x * width, transform.y * height);
+  context.rotate(transform.rotation);
+  context.scale(transform.scale, transform.scale);
+  context.drawImage(canvas, -width / 2, -height / 2, width, height);
+}
+
+function isLayerTransformed(transform) {
+  return transform && (transform.x !== 0.5 || transform.y !== 0.5 || transform.scale !== 1 || transform.rotation !== 0);
 }
 
 async function drawReferenceItem(context, item, image, mask, width, height, forceOpaque = false) {

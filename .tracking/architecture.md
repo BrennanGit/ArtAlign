@@ -4,7 +4,7 @@
 
 1. Source raster coordinates belong to each imported asset.
 2. Reference transforms place source rasters in normalized canonical canvas space.
-3. Captures, scribbles, and guides already occupy normalized canonical space.
+3. Captures, scribbles, and guides use normalized canonical coordinates for their source content. Optional layer transforms place that content on the canonical canvas; drawing input is mapped back through its inverse.
 4. A project homography maps canonical space to the observed still/video quadrilateral.
 
 Reference transforms and the project homography must never be merged in persistent state.

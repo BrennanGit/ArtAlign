@@ -4,6 +4,7 @@ export const LONG_EDGE = 1800;
 export const MODES = Object.freeze({
   VIEW: "VIEW",
   COMPOSE_REFERENCE: "COMPOSE_REFERENCE",
+  TRANSFORM: "TRANSFORM",
   EDIT_CORNERS: "EDIT_CORNERS",
   DRAW: "DRAW",
   MASK: "MASK",
@@ -103,6 +104,7 @@ export function createCaptureLayer(assetId, name, dimensions) {
     assetId,
     dimensions: { width: dimensions.width, height: dimensions.height },
     placement: { x: 0.5, y: 0.5, width: 1, height: 1 },
+    transform: { x: 0.5, y: 0.5, scale: 1, rotation: 0 },
     visible: true,
     opacity: 1,
     blendMode: "normal",
@@ -125,6 +127,10 @@ export function resizeProjectCanvas(project, ratioWidth, ratioHeight) {
     item.transform.scale *= oldFit / newFit;
   }
   for (const layer of project.layers) {
+    if (layer.transform) {
+      layer.transform.x = mapX(layer.transform.x);
+      layer.transform.y = mapY(layer.transform.y);
+    }
     if (layer.kind === "capture") {
       const placement = layer.placement ?? { x: 0.5, y: 0.5, width: 1, height: 1 };
       layer.placement = {
@@ -152,6 +158,7 @@ export function createScribbleLayer(name = "Scribble") {
     id: makeId("scribble"),
     kind: "scribble",
     name,
+    transform: { x: 0.5, y: 0.5, scale: 1, rotation: 0 },
     visible: true,
     opacity: 1,
     blendMode: "normal",
@@ -167,6 +174,7 @@ export function createGuideLayer(name = "Guides") {
     visible: true,
     opacity: 1,
     blendMode: "normal",
+    transform: { x: 0.5, y: 0.5, scale: 1, rotation: 0 },
     horizontal: 3,
     vertical: 3,
     colour: "#e8442e",
