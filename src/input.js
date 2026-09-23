@@ -105,3 +105,11 @@ export function panViewByPointer(view, initialPointer, currentPointer, bounds) {
     panY: (view.panY ?? 0) + (currentPointer.y - initialPointer.y) / Math.max(1, bounds.height * zoom),
   };
 }
+
+export function panAndZoomView(view, initialGesture, currentGesture, focus, bounds) {
+  const zoom = initialGesture.distance > 0
+    ? view.zoom * currentGesture.distance / initialGesture.distance
+    : view.zoom;
+  const scaled = zoomViewAt(view, zoom, focus);
+  return panViewByPointer(scaled, initialGesture.centre, currentGesture.centre, bounds);
+}

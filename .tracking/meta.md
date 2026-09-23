@@ -1,7 +1,7 @@
 # Tracking Meta Index
 
 - Index created: {YYYY-MM-DD}
-- Last updated: 2026-08-11 UTC
+- Last updated: 2026-09-23 UTC
 
 ---
 
@@ -21,6 +21,27 @@
 
 ---
 ## Tasks
+
+- [done] 026-view-menu-history-export — View Menu, Export, and Global History (2026-09-23) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: index.html, styles.css, src/app.js, src/model.js, src/history.js, tests/history.test.mjs, spec.md, README.md
+  Functions: bindEvents(), setView(), exportCanvas(), scheduleSave(), restoreHistory(), persistMask()
+  Related: #027, #028
+
+- [done] 027-two-finger-pan — Two-Finger Pan (2026-09-23) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: src/input.js, src/app.js, tests/input.test.mjs, spec.md, README.md
+  Functions: pointerMove(), beginPinchNavigation(), panAndZoomView()
+  Related: #026
+
+- [done] 028-guide-layers — Guide Layers (2026-09-23) — Owner: agent
+  Type: feature
+  Stability: experimental
+  Files: src/model.js, src/canonical.js, src/app.js, index.html, tests/guides.test.mjs, spec.md, README.md
+  Functions: createGuideLayer(), guidePositions(), CanonicalCompositor.rebuild(), renderInspector(), handleLayerTypeClick()
+  Related: #026
 
 <!--
 Format:

@@ -55,6 +55,7 @@ export class CanonicalCompositor {
       if (!layer.visible || layer.id === options.excludeLayerId || options.soloLayerId && layer.id !== options.soloLayerId) continue;
       if (layer.kind === "scribble") this.#drawScribble(layer, width, height);
       if (layer.kind === "capture") await this.#drawRaster(layer, width, height, options);
+      if (layer.kind === "guide") this.#drawGuide(layer, width, height);
     }
     return this.canvas;
   }
@@ -135,6 +136,30 @@ export class CanonicalCompositor {
     this.context.drawImage(layerCanvas, 0, 0);
     this.context.restore();
   }
+
+  #drawGuide(layer, width, height) {
+    this.context.save();
+    this.context.globalAlpha = layer.opacity;
+    this.context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
+    this.context.strokeStyle = layer.colour;
+    this.context.lineWidth = layer.thickness * Math.min(width, height);
+    this.context.beginPath();
+    for (const fraction of guidePositions(layer.horizontal)) {
+      this.context.moveTo(0, fraction * height);
+      this.context.lineTo(width, fraction * height);
+    }
+    for (const fraction of guidePositions(layer.vertical)) {
+      this.context.moveTo(fraction * width, 0);
+      this.context.lineTo(fraction * width, height);
+    }
+    this.context.stroke();
+    this.context.restore();
+  }
+}
+
+export function guidePositions(divisions) {
+  const count = Math.max(0, Math.min(100, Math.trunc(Number(divisions) || 0)));
+  return Array.from({ length: Math.max(0, count - 1) }, (_, index) => (index + 1) / count);
 }
 
 export function referenceBounds(item, canvasWidth, canvasHeight) {

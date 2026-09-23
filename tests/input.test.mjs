@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
+import { applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
 import { referenceSourcePoint } from "../src/canonical.js";
 
 test("pointer coordinates normalize and clamp to an element", () => {
@@ -91,4 +91,14 @@ test("photo pan follows a pointer displacement and compensates for zoom", () => 
 
   assert.deepEqual(panned, { panX: 0.2, panY: -0.1, zoom: 2, rotation: 0 });
   assert.deepEqual(initial, { panX: 0.1, panY: -0.2, zoom: 2, rotation: 0 });
+});
+
+test("parallel two-finger movement pans without zoom and combined movement pans with pinch", () => {
+  const initial = { panX: 0, panY: 0, zoom: 1 };
+  const start = { centre: { x: 200, y: 200 }, distance: 100 };
+  const bounds = { width: 400, height: 400 };
+  const panned = panAndZoomView(initial, start, { centre: { x: 240, y: 260 }, distance: 100 }, { x: 0.5, y: 0.5 }, bounds);
+  assert.deepEqual(panned, { panX: 0.1, panY: 0.15, zoom: 1 });
+  const combined = panAndZoomView(initial, start, { centre: { x: 240, y: 260 }, distance: 200 }, { x: 0.5, y: 0.5 }, bounds);
+  assert.deepEqual(combined, { panX: -0.45, panY: -0.425, zoom: 2 });
 });

@@ -120,6 +120,10 @@ The view transform used for navigation is stored separately as `panX`, `panY`, a
 `zoom`. It changes how the stage is displayed but never changes canonical layer
 geometry or the project homography.
 
+Two-finger parallel movement pans the viewport in every view, and midpoint
+movement can be combined with pinch zoom. A single-pointer drag pans only in
+Photo view; in canonical editing views it remains available for the active tool.
+
 ---
 
 ## 3. Project Setup Workflow
@@ -618,6 +622,15 @@ Advantages:
 
 Rasterise scribbles into the canonical overlay texture when required.
 
+### Guide layers
+
+Each guide layer stores independent horizontal and vertical division counts,
+colour, and thickness. A count of three places two equally spaced interior
+lines on that axis, dividing the canvas into thirds; zero or one draws none.
+The line thickness is a fraction of the canvas's shorter edge. Guides are
+composited alongside other layers in order, including in photo/live projection
+and image export, and respect per-layer visibility, opacity, and blend mode.
+
 ---
 
 ## 12. Generic Layer Masking
@@ -654,8 +667,8 @@ Tools:
 - Restore
 - brush size
 - brush softness/hardness
-- undo
-- redo
+- global undo
+- global redo
 - reset mask
 
 Erase reduces opacity.
@@ -786,8 +799,8 @@ Tools:
 - eraser
 - width
 - colour
-- undo
-- redo
+- global undo
+- global redo
 - clear
 - new scribble layer
 
@@ -838,6 +851,13 @@ Autosave after meaningful changes such as:
 
 Avoid rewriting large image assets for minor metadata changes.
 
+The workspace header provides Undo and Redo for project edits across layer
+types, including masks and guide settings. Continuous slider edits are grouped
+into one action; starting a new edit clears redo. The bounded history is held
+in memory for the current open project, while the resulting project state is
+autosaved. Image versions needed by earlier actions are retained in local
+storage until the project is deleted.
+
 The app's opening screen should show locally stored projects and reopen them in their last saved state.
 
 Example:
@@ -854,7 +874,9 @@ Storage is local to that browser/device.
 
 An iPhone Safari project database and a Windows Chrome project database are separate.
 
-Export/import is not required initially, but may be useful later for:
+The view menu offers a PNG download of the current canonical canvas at its
+native resolution, with the visible layers composited over white. This is an
+image export, not a project backup. Project export/import may be useful later for:
 
 - backup
 - moving projects between devices
@@ -1268,7 +1290,7 @@ Canvas navigation changes only the user's view and never modifies project geomet
 Mouse equivalents:
 
 - wheel → zoom, preferably centred on pointer
-- drag using the normal view/pan interaction → pan
+- drag in Photo view → pan
 - explicit Fit/Reset control remains available
 
 Avoid relying on middle mouse buttons or unusual mouse chords because the desktop version is primarily a convenient development/secondary interface.
@@ -1283,9 +1305,9 @@ Touch:
 - one-finger drag inside selected object → translate
 - drag corner handle → uniform scale
 - drag rotation handle → rotate
-- pinch/twist beginning inside selected object's bounds → scale + rotate as a convenience shortcut
+- two-finger motion, including a pinch inside an object, navigates the viewport
 
-A pinch beginning outside the selected object's bounds should navigate the canvas rather than transform the object.
+Starting a second touch cancels a provisional one-finger object edit so the gesture navigates the canvas.
 
 Mouse:
 

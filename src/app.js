@@ -1,11 +1,12 @@
-import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js";
+import { AssetCache, CanonicalCompositor, referenceBounds, referenceSourcePoint } from "./canonical.js?runtime=4";
 import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js?runtime=3";
-import { applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js";
+import { applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js?runtime=4";
 import {
   ASPECT_PRESETS,
   BLEND_MODES,
   MODES,
   createCaptureLayer,
+  createGuideLayer,
   createProject,
   createReferenceItem,
   createScribbleLayer,
@@ -17,6 +18,7 @@ import {
   touchProject,
 } from "./model.js";
 import { ProjectionRenderer } from "./renderer.js";
+import { ProjectHistory } from "./history.js";
 import { MemoryProjectStore, ProjectStore } from "./store.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -25,6 +27,7 @@ let assetCache;
 let compositor;
 let renderer;
 let project = null;
+let history = null;
 let projects = [];
 let view = "canonical";
 let background = null;
@@ -94,8 +97,18 @@ function bindEvents() {
   elements.projectList.addEventListener("click", handleProjectListClick);
   elements.backButton.addEventListener("click", closeProject);
   elements.projectName.addEventListener("click", renameProject);
+  elements.undoButton.addEventListener("click", () => restoreHistory("undo").catch(showError));
+  elements.redoButton.addEventListener("click", () => restoreHistory("redo").catch(showError));
+  elements.viewButton.addEventListener("click", () => setViewMenuOpen(elements.viewMenu.hidden));
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".header-tools")) setViewMenuOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setViewMenuOpen(false);
+  });
   elements.photoButton.addEventListener("click", () => togglePhotoView().catch(showError));
   elements.liveButton.addEventListener("click", () => toggleLiveView().catch(showError));
+  elements.exportButton.addEventListener("click", () => exportCanvas().catch(showError));
   elements.finishModeButton.addEventListener("click", () => finishCurrentMode().catch(showError));
   elements.layersButton.addEventListener("click", toggleLayerPanel);
   elements.layerDialog.addEventListener("click", handleLayerTypeClick);
@@ -104,6 +117,7 @@ function bindEvents() {
   elements.photoInput.addEventListener("change", importPhoto);
   elements.inspector.addEventListener("click", handleInspectorClick);
   elements.inspector.addEventListener("input", handleInspectorInput);
+  elements.inspector.addEventListener("change", () => history?.endGroup());
   elements.inspector.addEventListener("keydown", handleInspectorKeyDown);
   elements.inspector.addEventListener("pointerdown", beginLayerDrag);
   elements.inspector.addEventListener("pointermove", updateLayerDrag);
@@ -185,7 +199,10 @@ async function openProject(id) {
   elements.projectsView.hidden = true;
   elements.workspaceView.hidden = false;
   elements.projectName.textContent = project.name;
-  await setView(project.source.kind === "still" ? "photo" : "canonical");
+  const savedView = project.workspaceView ?? (project.source.kind === "still" ? "photo" : "canonical");
+  await setView(savedView === "live" ? "canonical" : savedView);
+  history = new ProjectHistory(project);
+  updateHistoryButtons();
   await saveNow();
 }
 
@@ -194,6 +211,7 @@ async function closeProject() {
   closeLayerPanel();
   await saveNow();
   project = null;
+  history = null;
   elements.workspaceView.hidden = true;
   elements.projectsView.hidden = false;
   projects = await store.listProjects();
@@ -245,6 +263,7 @@ async function importPhoto(event) {
 }
 
 async function setView(nextView) {
+  setViewMenuOpen(false);
   if (nextView !== view) {
     canvasDetectionAbort?.abort();
     canvasDetectionAbort = null;
@@ -252,6 +271,7 @@ async function setView(nextView) {
   if (nextView === "canonical") clearOpenCvIssue();
   if (nextView !== "live" && cameraStream) stopCamera();
   view = nextView;
+  project.workspaceView = nextView;
   const canonical = view === "canonical";
   elements.editorCanvas.style.display = canonical ? "block" : "none";
   elements.projectionCanvas.style.display = canonical ? "none" : "block";
@@ -270,17 +290,35 @@ async function setView(nextView) {
   }
   elements.photoButton.classList.toggle("active", view === "photo");
   elements.liveButton.classList.toggle("active", view === "live");
-  updateCameraButton(elements.photoButton, view === "photo", "Open photo");
-  updateCameraButton(elements.liveButton, view === "live", "Open live camera");
+  elements.photoButton.textContent = view === "photo" ? "Return from photo" : "Photo view";
+  elements.liveButton.textContent = view === "live" ? "Return from camera" : "Live camera";
   applyCanvasView();
   await refresh();
 }
 
-function updateCameraButton(button, active, inactiveLabel) {
-  const label = active ? "Return to canvas" : inactiveLabel;
-  button.setAttribute("aria-pressed", String(active));
-  button.setAttribute("aria-label", label);
-  button.title = label;
+function setViewMenuOpen(open) {
+  elements.viewMenu.hidden = !open;
+  elements.viewButton.setAttribute("aria-expanded", String(open));
+}
+
+async function exportCanvas() {
+  setViewMenuOpen(false);
+  const overlay = await new CanonicalCompositor(assetCache).rebuild(project);
+  const canvas = document.createElement("canvas");
+  canvas.width = overlay.width;
+  canvas.height = overlay.height;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "white";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(overlay, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("Canvas image could not be created");
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${project.name.trim().replace(/[^a-z0-9-]+/gi, "-").replace(/^-|-$/g, "") || "canvas"}.png`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 async function refresh(rebuild = true, updateControls = true) {
@@ -307,7 +345,7 @@ async function refresh(rebuild = true, updateControls = true) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(rectificationSession?.image ?? overlay, 0, 0, canvas.width, canvas.height);
   }
-  elements.emptyHint.hidden = Boolean(rectificationSession) || project.referenceGroup.children.length > 0 || project.layers.some((layer) => layer.kind === "capture" || layer.strokes?.length);
+  elements.emptyHint.hidden = Boolean(rectificationSession) || project.referenceGroup.children.length > 0 || project.layers.some((layer) => layer.kind === "capture" || layer.kind === "guide" || layer.strokes?.length);
   updateModeChip();
   if (updateControls) renderInspector();
   drawInteraction();
@@ -381,13 +419,19 @@ function renderInspector() {
     <div class="control-row three"><button data-action="mask" class="${project.mode === MODES.MASK ? "primary" : ""}">Edit</button><button data-action="mask-erase" class="${maskSettings.tool === "erase" ? "primary" : ""}">Erase</button><button data-action="mask-restore" class="${maskSettings.tool === "restore" ? "primary" : ""}">Restore</button></div>
     <label class="control">Brush size<input data-field="maskWidth" type="range" min="0.01" max="0.3" step="0.01" value="${maskSettings.width}"></label>
     <label class="control">Hardness<input data-field="maskHardness" type="range" min="0.05" max="1" step="0.05" value="${maskSettings.hardness}"></label>
-    <div class="control-row three"><button data-action="mask-undo">Undo</button><button data-action="mask-redo">Redo</button><button data-action="mask-reset">Reset</button></div>
+    <button data-action="mask-reset">Reset mask</button>
   ` : "";
   const scribbleControls = selected?.kind === "scribble" ? `
     <div class="control-row"><button data-action="pen" class="${drawSettings.tool === "pen" ? "primary" : ""}">Pen</button><button data-action="eraser" class="${drawSettings.tool === "eraser" ? "primary" : ""}">Eraser</button></div>
     <label class="control">Colour<input data-field="drawColour" type="color" value="${drawSettings.colour}"></label>
     <label class="control">Width<input data-field="drawWidth" type="range" min="0.002" max="0.05" step="0.002" value="${drawSettings.width}"></label>
-    <div class="control-row three"><button data-action="undo">Undo</button><button data-action="redo">Redo</button><button data-action="clear">Clear</button></div>
+    <button data-action="clear">Clear drawing</button>
+  ` : "";
+  const guideControls = selected?.kind === "guide" ? `
+    <label class="control">Horizontal divisions<input data-field="horizontal" type="number" min="0" max="100" step="1" value="${selected.horizontal}"></label>
+    <label class="control">Vertical divisions<input data-field="vertical" type="number" min="0" max="100" step="1" value="${selected.vertical}"></label>
+    <label class="control">Colour<input data-field="guideColour" type="color" value="${selected.colour}"></label>
+    <label class="control">Thickness<input data-field="thickness" type="range" min="0.0005" max="0.02" step="0.0005" value="${selected.thickness}"></label>
   ` : "";
   const projectionControls = view !== "canonical" ? `
     <h3>Canvas registration</h3>
@@ -397,7 +441,7 @@ function renderInspector() {
   elements.inspector.innerHTML = `
     ${panelHeader("Layers", true)}
     <div class="layer-list">${layerRows()}</div>
-    ${editingLayerId === selected?.id ? `<div class="layer-editor"><div class="editor-heading"><strong>${escapeHtml(selected.name)}</strong><span>${titleCase(selected.kind)}</span></div>${common}${referenceControls}${referenceGroupControls}${colourKeyControls}${maskControls}${scribbleControls}${projectionControls}</div>` : projectionControls ? `<div class="layer-editor">${projectionControls}</div>` : ""}
+    ${editingLayerId === selected?.id ? `<div class="layer-editor"><div class="editor-heading"><strong>${escapeHtml(selected.name)}</strong><span>${titleCase(selected.kind)}</span></div>${common}${referenceControls}${referenceGroupControls}${colourKeyControls}${maskControls}${scribbleControls}${guideControls}${projectionControls}</div>` : projectionControls ? `<div class="layer-editor">${projectionControls}</div>` : ""}
   `;
 }
 
@@ -433,6 +477,7 @@ async function handleInspectorClick(event) {
   const visibleId = event.target.closest("[data-visible]")?.dataset.visible;
   if (selectId) {
     project.activeLayerId = selectId;
+    scheduleSave();
     renderInspector();
     drawInteraction();
     return;
@@ -491,17 +536,13 @@ async function handleInspectorClick(event) {
     renderInspector();
     return;
   }
-  if (action === "mask-undo") return maskUndo();
-  if (action === "mask-redo") return maskRedo();
   if (action === "mask-reset") return resetMask();
   if (action === "fit") layer.transform.scale = 1;
   if (action === "centre") Object.assign(layer.transform, { x: 0.5, y: 0.5 });
   if (action === "reset") Object.assign(layer.transform, { x: 0.5, y: 0.5, scale: 1, rotation: 0, flipX: false });
   if (action === "flip") layer.transform.flipX = !layer.transform.flipX;
   if (action === "pen" || action === "eraser") drawSettings.tool = action;
-  if (action === "undo" && layer.strokes.length) layer.redo.push(layer.strokes.pop());
-  if (action === "redo" && layer.redo.length) layer.strokes.push(layer.redo.pop());
-  if (action === "clear") { layer.redo.push(...layer.strokes); layer.strokes = []; }
+  if (action === "clear") layer.strokes = [];
   scheduleSave();
   await refresh();
 }
@@ -520,7 +561,10 @@ function handleInspectorInput(event) {
   if (field === "drawWidth") drawSettings.width = Number(event.target.value);
   if (field === "maskWidth") maskSettings.width = Number(event.target.value);
   if (field === "maskHardness") maskSettings.hardness = Number(event.target.value);
-  scheduleSave();
+  if (field === "horizontal" || field === "vertical") layer[field] = Math.max(0, Math.min(100, Math.trunc(Number(event.target.value) || 0)));
+  if (field === "guideColour") layer.colour = event.target.value;
+  if (field === "thickness") layer.thickness = Number(event.target.value);
+  scheduleSave(`field:${field}`);
   requestEditorPreview();
 }
 
@@ -552,6 +596,18 @@ async function handleLayerTypeClick(event) {
   elements.layerDialog.close();
   if (type === "reference") {
     elements.referenceInput.click();
+    return;
+  }
+  if (type === "guide") {
+    const number = project.layers.filter((layer) => layer.kind === "guide").length + 1;
+    const guide = createGuideLayer(`Guides ${number}`);
+    project.layers.push(guide);
+    project.activeLayerId = guide.id;
+    editingLayerId = guide.id;
+    project.mode = MODES.VIEW;
+    await setView("canonical");
+    openLayerPanel();
+    scheduleSave();
     return;
   }
   const number = project.layers.filter((layer) => layer.kind === "scribble").length + 1;
@@ -632,24 +688,9 @@ async function deleteLayer(layerId) {
   if (!removed) return;
   if (editingLayerId === layerId) editingLayerId = null;
   if (renamingLayerId === layerId) renamingLayerId = null;
-  await deleteUnusedLayerAssets(removed);
   project.mode = MODES.VIEW;
   scheduleSave();
   await refresh();
-}
-
-async function deleteUnusedLayerAssets(layer) {
-  const remaining = [project.referenceGroup, ...project.referenceGroup.children, ...project.layers];
-  const retainedIds = new Set(remaining.flatMap(layerAssetIds));
-  for (const assetId of new Set(layerAssetIds(layer))) {
-    if (!assetId || retainedIds.has(assetId)) continue;
-    assetCache.forget(assetId);
-    await store.deleteAsset(assetId);
-  }
-}
-
-function layerAssetIds(layer) {
-  return [layer.assetId, layer.sourceAssetId, layer.maskAssetId].filter(Boolean);
 }
 
 function beginLayerDrag(event) {
@@ -995,15 +1036,7 @@ async function applyReferenceRectification() {
     const blob = await rectifySource(rectificationSession.image, rectificationSession.quad, width, height);
     const assetId = makeId("asset");
     await store.putAsset({ id: assetId, projectId: project.id, blob, kind: "rectified-reference" });
-    if (layer.assetId !== layer.sourceAssetId) {
-      assetCache.forget(layer.assetId);
-      await store.deleteAsset(layer.assetId);
-    }
-    if (layer.maskAssetId) {
-      assetCache.forget(layer.maskAssetId);
-      await store.deleteAsset(layer.maskAssetId);
-      layer.maskAssetId = null;
-    }
+    layer.maskAssetId = null;
     layer.assetId = assetId;
     layer.dimensions = { width, height };
     rectificationSession = null;
@@ -1080,17 +1113,14 @@ function pointerDown(event) {
   if (project.mode === MODES.DRAW && view === "canonical") {
     const layer = selectedLayer();
     if (layer?.kind !== "scribble") return;
-    interactionRollback = { type: "stroke", layer, redo: [...layer.redo] };
+    interactionRollback = { type: "stroke", layer };
     activeStroke = { tool: drawSettings.tool, colour: drawSettings.colour, width: drawSettings.width, opacity: 1, points: [point] };
     layer.strokes.push(activeStroke);
-    layer.redo = [];
   }
   if (project.mode === MODES.MASK && view === "canonical" && maskSession) {
     brushCursor = point;
     const imageData = maskSession.context.getImageData(0, 0, maskSession.canvas.width, maskSession.canvas.height);
-    interactionRollback = { type: "mask", imageData, redo: [...maskSession.redo] };
-    maskSession.undo.push(imageData);
-    maskSession.redo = [];
+    interactionRollback = { type: "mask", imageData };
     maskSession.lastPoint = maskPoint(point, selectedLayer());
     paintMaskPoint(maskSession.lastPoint);
     requestEditorPreview();
@@ -1115,11 +1145,11 @@ function pointerMove(event) {
   if (navigationPointers.has(event.pointerId)) navigationPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   if (pinchStart && navigationPointers.size >= 2) {
     const gesture = gestureFromPointers(navigationPointers);
-    if (gesture.distance > 0 && pinchStart.distance > 0) {
-      project.view = zoomViewAt(project.view, pinchStart.view.zoom * gesture.distance / pinchStart.distance, pinchStart.focus);
-      applyCanvasView();
-      drawInteraction();
-    }
+    project.view = panAndZoomView(pinchStart.view, pinchStart.gesture, gesture, pinchStart.focus, {
+      width: elements.stage.clientWidth, height: elements.stage.clientHeight,
+    });
+    applyCanvasView();
+    drawInteraction();
     return;
   }
   if (photoPanStart && navigationPointers.size === 1) {
@@ -1215,7 +1245,7 @@ function wheelZoom(event) {
   project.view = zoomViewAt(project.view, zoom, focus);
   applyCanvasView();
   drawInteraction();
-  scheduleSave();
+  scheduleSave("wheel");
 }
 
 function beginPinchNavigation() {
@@ -1224,7 +1254,7 @@ function beginPinchNavigation() {
   const gesture = gestureFromPointers(navigationPointers);
   pinchStart = {
     view: { ...project.view },
-    distance: gesture.distance,
+    gesture,
     focus: zoomFocusFromPointer({ clientX: gesture.centre.x, clientY: gesture.centre.y }, elements.stage),
   };
   suppressEditingUntilPointersClear = true;
@@ -1236,17 +1266,16 @@ function cancelProvisionalInteraction() {
   }
   if (interactionRollback?.type === "stroke") {
     if (interactionRollback.layer.strokes.at(-1) === activeStroke) interactionRollback.layer.strokes.pop();
-    interactionRollback.layer.redo = interactionRollback.redo;
+    requestEditorPreview();
   }
   if (interactionRollback?.type === "mask") {
     maskSession.context.putImageData(interactionRollback.imageData, 0, 0);
-    if (maskSession.undo.at(-1) === interactionRollback.imageData) maskSession.undo.pop();
-    maskSession.redo = interactionRollback.redo;
     maskSession.lastPoint = null;
     requestEditorPreview();
   }
   if (interactionRollback?.type === "reference") {
     interactionRollback.layer.transform = interactionRollback.transform;
+    requestEditorPreview();
   }
   interactionRollback = null;
   activeCorner = -1;
@@ -1276,7 +1305,7 @@ async function beginMaskSession(layer) {
     const existing = await assetCache.get(layer.maskAssetId);
     if (existing) context.drawImage(existing, 0, 0, canvas.width, canvas.height);
   }
-  maskSession = { layerId: layer.id, canvas, context, undo: [], redo: [], lastPoint: null };
+  maskSession = { layerId: layer.id, canvas, context, lastPoint: null };
   brushCursor = null;
   project.mode = MODES.MASK;
   await setView("canonical");
@@ -1327,33 +1356,16 @@ function paintMaskLine(from, to) {
 async function persistMask() {
   if (!maskSession) return;
   const layer = findLayer(maskSession.layerId);
-  const assetId = layer.maskAssetId ?? makeId("mask");
+  const assetId = makeId("mask");
   const blob = await canvasBlob(maskSession.canvas);
   await store.putAsset({ id: assetId, projectId: project.id, blob, kind: "mask" });
   layer.maskAssetId = assetId;
-  assetCache.forget(assetId);
   scheduleSave();
   await refresh();
 }
 
-async function maskUndo() {
-  if (!maskSession?.undo.length) return;
-  maskSession.redo.push(maskSession.context.getImageData(0, 0, maskSession.canvas.width, maskSession.canvas.height));
-  maskSession.context.putImageData(maskSession.undo.pop(), 0, 0);
-  await persistMask();
-}
-
-async function maskRedo() {
-  if (!maskSession?.redo.length) return;
-  maskSession.undo.push(maskSession.context.getImageData(0, 0, maskSession.canvas.width, maskSession.canvas.height));
-  maskSession.context.putImageData(maskSession.redo.pop(), 0, 0);
-  await persistMask();
-}
-
 async function resetMask() {
   if (!maskSession) return;
-  maskSession.undo.push(maskSession.context.getImageData(0, 0, maskSession.canvas.width, maskSession.canvas.height));
-  maskSession.redo = [];
   maskSession.context.globalCompositeOperation = "source-over";
   maskSession.context.fillStyle = "white";
   maskSession.context.fillRect(0, 0, maskSession.canvas.width, maskSession.canvas.height);
@@ -1593,8 +1605,10 @@ function findLayer(id) {
   return project.referenceGroup.children.find((item) => item.id === id) ?? project.layers.find((layer) => layer.id === id) ?? null;
 }
 
-function scheduleSave() {
+function scheduleSave(group = null) {
   if (!project) return;
+  history?.record(project, group);
+  updateHistoryButtons();
   touchProject(project);
   elements.saveState.textContent = "Saving...";
   clearTimeout(saveTimer);
@@ -1604,8 +1618,42 @@ function scheduleSave() {
 async function saveNow() {
   clearTimeout(saveTimer);
   if (!project) return;
+  history?.record(project);
+  updateHistoryButtons();
   await store.saveProject(project);
   elements.saveState.textContent = "Saved locally";
+}
+
+function updateHistoryButtons() {
+  elements.undoButton.disabled = !history?.canUndo;
+  elements.redoButton.disabled = !history?.canRedo;
+}
+
+async function restoreHistory(direction) {
+  if (!project || !history) return;
+  const restored = history[direction]();
+  if (!restored) return;
+  clearTimeout(saveTimer);
+  canvasDetectionAbort?.abort();
+  rectificationSession?.detectionAbort?.abort();
+  rectificationSession = null;
+  maskSession = null;
+  cancelProvisionalInteraction();
+  pointers.clear();
+  navigationPointers.clear();
+  pinchStart = null;
+  photoPanStart = null;
+  project = { ...restored, updatedAt: project.updatedAt, lastOpenedAt: project.lastOpenedAt };
+  editingLayerId = findLayer(project.activeLayerId)?.id ?? null;
+  elements.projectName.textContent = project.name;
+  background = null;
+  const restoredView = project.workspaceView === "live" && !cameraStream ? "canonical" : project.workspaceView ?? "canonical";
+  await setView(restoredView);
+  if (project.mode === MODES.MASK && isRasterLayer(selectedLayer())) await beginMaskSession(selectedLayer());
+  applyCanvasView();
+  updateHistoryButtons();
+  touchProject(project);
+  await saveNow();
 }
 
 function showError(error) {

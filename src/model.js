@@ -68,6 +68,7 @@ export function createProject({ name, ratioWidth, ratioHeight }) {
     activeLayerId: null,
     mode: MODES.VIEW,
     source: { kind: "none", assetId: null },
+    workspaceView: "canonical",
     projection: {
       quad: defaultQuad(),
       confidence: 0,
@@ -118,7 +119,21 @@ export function createScribbleLayer(name = "Scribble") {
     opacity: 1,
     blendMode: "normal",
     strokes: [],
-    redo: [],
+  };
+}
+
+export function createGuideLayer(name = "Guides") {
+  return {
+    id: makeId("guide"),
+    kind: "guide",
+    name,
+    visible: true,
+    opacity: 1,
+    blendMode: "normal",
+    horizontal: 3,
+    vertical: 3,
+    colour: "#e8442e",
+    thickness: 0.002,
   };
 }
 
