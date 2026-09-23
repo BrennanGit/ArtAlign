@@ -12,7 +12,9 @@
   font-family: "Trebuchet MS", "Gill Sans", sans-serif;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
 
 html, body { min-height: 100%; margin: 0; }
 
@@ -138,7 +140,7 @@ button svg, .fixed-layer svg { width: 20px; height: 20px; fill: none; stroke: cu
 .layer-row.dragging { z-index: 2; border-color: var(--accent-dark); background: #dcf5ed; box-shadow: inset 3px 0 var(--accent-dark), 0 2px 10px rgb(0 0 0 / 16%); cursor: grabbing; }
 .layer-row.nested { width: calc(100% - 16px); margin-left: 16px; }
 .layer-row button { border: 0; border-radius: 0; background: transparent; }
-.layer-row .layer-name { min-width: 0; min-height: 42px; display: grid; align-content: center; gap: 2px; padding: 4px 6px; overflow: hidden; text-align: left; touch-action: none; user-select: none; }
+.layer-row .layer-name { min-width: 0; min-height: 42px; display: grid; align-content: center; gap: 2px; padding: 4px 6px; overflow: hidden; text-align: left; touch-action: none; -webkit-touch-callout: none; }
 .layer-rename-input { width: calc(100% - 6px); min-width: 0; height: 32px; margin-left: 4px; padding: 0 6px; border: 1px solid var(--accent); background: white; color: var(--ink); font-size: 12px; }
 .layer-name strong { overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .layer-name span { color: var(--muted); font-size: 10px; }
