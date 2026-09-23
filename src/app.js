@@ -1,6 +1,6 @@
 import { AssetCache, CanonicalCompositor, layerSourcePoint, referenceBounds, referenceSourcePoint } from "./canonical.js?runtime=5";
 import { CanvasTracker, detectCanvasQuad, rectifySource, trackingScheduleDelay } from "./cv.js?runtime=3";
-import { applyLinkedTransform, applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js?runtime=5";
+import { applyLinkedTransform, applyReferenceHandle, clampPoint, gestureFromPointers, nearestCorner, relativePointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "./input.js?runtime=5";
 import {
   ASPECT_PRESETS,
   BLEND_MODES,
@@ -1242,7 +1242,7 @@ function pointerDown(event) {
     const layer = selectedLayer();
     if (layer?.kind !== "scribble") return;
     interactionRollback = { type: "stroke", layer };
-    const sourcePoint = layerSourcePoint(layer, point, elements.stage.clientWidth, elements.stage.clientHeight);
+    const sourcePoint = layerSourcePoint(layer, rawPoint, elements.stage.clientWidth, elements.stage.clientHeight);
     activeStroke = { tool: drawSettings.tool, colour: drawSettings.colour, width: drawSettings.width, opacity: 1, points: drawSettings.tool === "line" ? [sourcePoint, { ...sourcePoint }] : [sourcePoint] };
     layer.strokes.push(activeStroke);
   }
@@ -1300,7 +1300,8 @@ function pointerMove(event) {
   }
   if (suppressEditingUntilPointersClear) return;
   const rawPoint = relativePointer(event, elements.stage);
-  const samples = normalizedPointerSamples(event, elements.stage);
+  const rawSamples = relativePointerSamples(event, elements.stage);
+  const samples = rawSamples.map(clampPoint);
   const point = samples.at(-1);
   if (project?.mode === MODES.MASK && view === "canonical") {
     brushCursor = point;
@@ -1318,8 +1319,8 @@ function pointerMove(event) {
   if (activeStroke) {
     const layer = selectedLayer();
     const toSource = (sample) => layerSourcePoint(layer, sample, elements.stage.clientWidth, elements.stage.clientHeight);
-    if (activeStroke.tool === "line") activeStroke.points[1] = toSource(point);
-    else for (const sample of samples) appendDistinctPoint(activeStroke.points, toSource(sample));
+    if (activeStroke.tool === "line") activeStroke.points[1] = toSource(rawSamples.at(-1));
+    else for (const sample of rawSamples) appendDistinctPoint(activeStroke.points, toSource(sample));
     requestEditorPreview();
   }
   if (project.mode === MODES.MASK && maskSession?.lastPoint) {
@@ -1361,7 +1362,7 @@ function pointerUp(event) {
   if (activeStroke?.tool === "line") {
     if (event.type === "pointercancel") cancelProvisionalInteraction();
     else {
-      activeStroke.points[1] = layerSourcePoint(selectedLayer(), clampPoint(relativePointer(event, elements.stage)), elements.stage.clientWidth, elements.stage.clientHeight);
+      activeStroke.points[1] = layerSourcePoint(selectedLayer(), relativePointer(event, elements.stage), elements.stage.clientWidth, elements.stage.clientHeight);
       if (activeStroke.points[0].x === activeStroke.points[1].x && activeStroke.points[0].y === activeStroke.points[1].y) {
         selectedLayer().strokes.pop();
         activeStroke = null;
@@ -1572,6 +1573,14 @@ function drawInteraction() {
   context.setTransform(scale, 0, 0, scale, 0, 0);
   context.clearRect(0, 0, viewportBounds.width, viewportBounds.height);
   if (!project) return;
+  if (view === "canonical" && !rectificationSession) {
+    compositor.drawSurroundings(project, context, viewportBounds.width, viewportBounds.height, {
+      x: stageBounds.left - viewportBounds.left,
+      y: stageBounds.top - viewportBounds.top,
+      width: stageBounds.width,
+      height: stageBounds.height,
+    });
+  }
   context.save();
   context.translate(stageBounds.left - viewportBounds.left, stageBounds.top - viewportBounds.top);
   if (view === "canonical" && rectificationSession) drawQuad(context, stageBounds.width, stageBounds.height, rectificationSession.quad);

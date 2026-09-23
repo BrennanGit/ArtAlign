@@ -86,6 +86,71 @@ test("drawing strokes keep their source points while the compositor applies the 
   }
 });
 
+test("drawing source outside the canvas survives a transform into view", async () => {
+  const operations = [];
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      getContext: () => ({
+        clearRect() {}, save() {}, restore() {}, beginPath() {}, stroke() {},
+        drawImage: (canvas, ...args) => operations.push(["draw", canvas.width, canvas.height, ...args]),
+        translate: (...args) => operations.push(["translate", ...args]),
+        rotate() {}, scale() {},
+        moveTo: (...args) => operations.push(["move", ...args]),
+        lineTo: (...args) => operations.push(["line", ...args]),
+      }),
+    }),
+  };
+  try {
+    const project = createProject({ name: "Off canvas", ratioWidth: 1, ratioHeight: 1 });
+    const drawing = createScribbleLayer();
+    drawing.strokes.push({ tool: "line", colour: "#e8442e", width: 0.008, points: [{ x: 1.2, y: 0.5 }, { x: 1.3, y: 0.5 }] });
+    drawing.transform.x = 0;
+    project.layers.push(drawing);
+    await new CanonicalCompositor({ get: async () => null }).rebuild(project);
+    assert.ok(operations.some(([command, canvasWidth, canvasHeight, x, y]) => command === "draw" && canvasWidth > 1.3 * 1800 && canvasHeight === 1800 && x === -900 && y === -900));
+    assert.ok(operations.some(([command, x]) => command === "move" && x > 1800));
+    assert.deepEqual(drawing.strokes[0].points, [{ x: 1.2, y: 0.5 }, { x: 1.3, y: 0.5 }]);
+  } finally {
+    globalThis.document = previousDocument;
+  }
+});
+
+test("surrounding drawing preview excludes the canvas and follows the stage", () => {
+  const operations = [];
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      getContext: () => ({
+        save() {}, restore() {}, beginPath() {}, stroke() {}, moveTo() {}, lineTo() {},
+        translate() {}, drawImage() {},
+      }),
+    }),
+  };
+  try {
+    const project = createProject({ name: "Surroundings", ratioWidth: 1, ratioHeight: 1 });
+    const drawing = createScribbleLayer();
+    drawing.strokes.push({ tool: "line", colour: "#e8442e", width: 0.008, points: [{ x: -0.1, y: 0.5 }, { x: 0.1, y: 0.5 }] });
+    project.layers.push(drawing);
+    const context = {
+      save() {}, restore() {}, beginPath() {},
+      rect: (...args) => operations.push(["rect", ...args]),
+      clip: (rule) => operations.push(["clip", rule]),
+      translate: (...args) => operations.push(["translate", ...args]),
+      scale: (...args) => operations.push(["scale", ...args]),
+      drawImage: (...args) => operations.push(["draw", ...args.slice(1)]),
+    };
+    new CanonicalCompositor({ get: async () => null }).drawSurroundings(project, context, 600, 400, { x: 100, y: 50, width: 300, height: 300 });
+    assert.deepEqual(operations.slice(0, 5), [
+      ["rect", 0, 0, 600, 400], ["rect", 100, 50, 300, 300], ["clip", "evenodd"],
+      ["translate", 100, 50], ["scale", 1 / 6, 1 / 6],
+    ]);
+    assert.ok(operations.some(([command]) => command === "draw"));
+  } finally {
+    globalThis.document = previousDocument;
+  }
+});
+
 test("capture and guide transforms composite after their source content is drawn", async () => {
   const operations = [];
   const previousDocument = globalThis.document;

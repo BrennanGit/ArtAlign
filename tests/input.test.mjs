@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyLinkedTransform, applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
+import { applyLinkedTransform, applyReferenceHandle, gestureFromPointers, nearestCorner, normalizedPointer, normalizedPointerSamples, panAndZoomView, panViewByPointer, relativePointer, relativePointerSamples, zoomFocusFromPointer, zoomViewAt } from "../src/input.js";
 import { layerSourcePoint, referenceSourcePoint } from "../src/canonical.js";
 
 test("pointer coordinates normalize and clamp to an element", () => {
@@ -28,6 +28,18 @@ test("pointer sampling retains coalesced movement points", () => {
     { x: 0.4, y: 0.5 },
     { x: 0.9, y: 0.9 },
   ]);
+});
+
+test("drawing samples preserve off-canvas coordinates through layer transforms", () => {
+  const element = { getBoundingClientRect: () => ({ left: 100, top: 50, width: 400, height: 200 }) };
+  const event = {
+    clientX: 560, clientY: 290,
+    getCoalescedEvents: () => [{ clientX: 80, clientY: 40 }, { clientX: 560, clientY: 290 }],
+  };
+  const samples = relativePointerSamples(event, element);
+  assert.deepEqual(samples, [{ x: -0.05, y: -0.05 }, { x: 1.15, y: 1.2 }]);
+  assert.deepEqual(normalizedPointerSamples(event, element), [{ x: 0, y: 0 }, { x: 1, y: 1 }]);
+  assert.deepEqual(layerSourcePoint({ transform: { x: 0.6, y: 0.5, scale: 0.5, rotation: 0 } }, samples[0], 400, 200), { x: -0.8, y: -0.6000000000000001 });
 });
 
 test("zoom focus uses raw stage-relative coordinates inside and outside the canvas", () => {

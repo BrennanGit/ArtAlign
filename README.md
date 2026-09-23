@@ -26,6 +26,8 @@ In reference or layer transform mode, check the boxes beside other layers to mov
 
 Mask edits preview continuously while drawing, and the on-canvas cursor shows the current brush footprint. Pointer input retains coalesced pen/touch/mouse samples and smooths the rendered vector path.
 
+In Drawing mode, pen, straight line, and eraser also work in the surrounding field outside the canvas. Those marks stay visible while editing; only the portion on the canvas is included in the projection or exported PNG. Transform the drawing layer to move off-canvas marks onto the canvas later. Mask and corner editing remain confined to the canvas.
+
 Canvas navigation can begin anywhere in the surrounding viewport field. Two fingers pan in all views, including while pinching to zoom around the gesture; the mouse wheel zooms over its pointer. Gestures outside the canvas preserve that off-canvas focus point. In Photo view, a single-pointer drag pans the canvas, while canonical single-pointer drags remain reserved for drawing and editing.
 
 Header Undo and Redo cover project edits across layer types, including drawing and mask changes. Canvas panning and zooming are saved but are not undoable; undoing an edit leaves the current view in place. Repeated slider movement is one action. History is bounded and lasts for the current open-project session; the restored state itself is autosaved. Original and intermediate image assets remain in local storage for history and are removed when the project is deleted.

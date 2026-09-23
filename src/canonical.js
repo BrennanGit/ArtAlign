@@ -60,6 +60,21 @@ export class CanonicalCompositor {
     return this.canvas;
   }
 
+  drawSurroundings(project, context, viewportWidth, viewportHeight, stageBounds) {
+    const { width, height } = project.canvas.resolution;
+    context.save();
+    context.beginPath();
+    context.rect(0, 0, viewportWidth, viewportHeight);
+    context.rect(stageBounds.x, stageBounds.y, stageBounds.width, stageBounds.height);
+    context.clip("evenodd");
+    context.translate(stageBounds.x, stageBounds.y);
+    context.scale(stageBounds.width / width, stageBounds.height / height);
+    for (const layer of project.layers) {
+      if (layer.visible && layer.kind === "scribble" && layer.strokes.length) this.#drawScribble(layer, width, height, context);
+    }
+    context.restore();
+  }
+
   async #drawReferenceGroup(group, width, height, options) {
     this.context.save();
     const isolateChild = group.children.some((item) => item.id === options.soloLayerId);
@@ -106,13 +121,27 @@ export class CanonicalCompositor {
     this.context.restore();
   }
 
-  #drawScribble(layer, width, height) {
+  #drawScribble(layer, width, height, context = this.context) {
+    let minX = 0;
+    let minY = 0;
+    let maxX = width;
+    let maxY = height;
+    for (const stroke of layer.strokes) {
+      const radius = stroke.width * Math.min(width, height) / 2 + 1;
+      for (const point of stroke.points) {
+        minX = Math.min(minX, Math.floor(point.x * width - radius));
+        minY = Math.min(minY, Math.floor(point.y * height - radius));
+        maxX = Math.max(maxX, Math.ceil(point.x * width + radius));
+        maxY = Math.max(maxY, Math.ceil(point.y * height + radius));
+      }
+    }
     const layerCanvas = document.createElement("canvas");
-    layerCanvas.width = width;
-    layerCanvas.height = height;
+    layerCanvas.width = maxX - minX;
+    layerCanvas.height = maxY - minY;
     const layerContext = layerCanvas.getContext("2d");
     layerContext.lineCap = "round";
     layerContext.lineJoin = "round";
+    if (minX || minY) layerContext.translate(-minX, -minY);
     for (const stroke of layer.strokes) {
       if (stroke.points.length === 0) continue;
       layerContext.beginPath();
@@ -142,11 +171,11 @@ export class CanonicalCompositor {
       }
       layerContext.stroke();
     }
-    this.context.save();
-    this.context.globalAlpha = layer.opacity;
-    this.context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
-    drawTransformedCanvas(this.context, layerCanvas, layer.transform, width, height);
-    this.context.restore();
+    context.save();
+    context.globalAlpha = layer.opacity;
+    context.globalCompositeOperation = toCanvasBlend(layer.blendMode);
+    drawTransformedCanvas(context, layerCanvas, layer.transform, width, height, minX, minY);
+    context.restore();
   }
 
   #drawGuide(layer, width, height) {
@@ -215,12 +244,12 @@ export function layerSourcePoint(layer, point, canvasWidth, canvasHeight) {
   };
 }
 
-function drawTransformedCanvas(context, canvas, transform, width, height) {
-  if (!isLayerTransformed(transform)) return context.drawImage(canvas, 0, 0);
+function drawTransformedCanvas(context, canvas, transform, width, height, offsetX = 0, offsetY = 0) {
+  if (!isLayerTransformed(transform)) return context.drawImage(canvas, offsetX, offsetY);
   context.translate(transform.x * width, transform.y * height);
   context.rotate(transform.rotation);
   context.scale(transform.scale, transform.scale);
-  context.drawImage(canvas, -width / 2, -height / 2, width, height);
+  context.drawImage(canvas, offsetX - width / 2, offsetY - height / 2, canvas.width, canvas.height);
 }
 
 function isLayerTransformed(transform) {

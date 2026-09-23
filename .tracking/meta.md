@@ -22,6 +22,12 @@
 ---
 ## Tasks
 
+- [done] 041-off-canvas-drawing — Off-Canvas Drawing (2026-09-23) — Owner: agent
+  Type: bugfix
+  Files: src/app.js, src/input.js, src/canonical.js, tests/input.test.mjs, tests/canvas-resize.test.mjs, index.html, README.md, .tracking/architecture.md
+  Functions: pointerDown(), pointerMove(), pointerUp(), drawInteraction(), relativePointerSamples(), CanonicalCompositor.#drawScribble(), CanonicalCompositor.drawSurroundings(), drawTransformedCanvas()
+  Related: #036
+
 - [done] 040-document-layer-workflow — Document Layer Editing Workflow (2026-09-23) — Owner: agent
   Type: docs
   Files: spec.md

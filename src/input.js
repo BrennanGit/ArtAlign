@@ -11,9 +11,13 @@ export function normalizedPointer(event, element) {
 }
 
 export function normalizedPointerSamples(event, element) {
+  return relativePointerSamples(event, element).map(clampPoint);
+}
+
+export function relativePointerSamples(event, element) {
   const events = event.getCoalescedEvents?.() ?? [event];
   const samples = events.length ? events : [event];
-  return samples.map((sample) => normalizedPointer(sample, element));
+  return samples.map((sample) => relativePointer(sample, element));
 }
 
 export function zoomFocusFromPointer(event, element) {

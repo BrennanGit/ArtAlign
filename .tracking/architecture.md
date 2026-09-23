@@ -12,11 +12,11 @@ Reference transforms and the project homography must never be merged in persiste
 ### Interaction Coordinates
 
 - **Source pixels** are the intrinsic pixel coordinates of an imported image or camera frame.
-- **Canonical coordinates** are normalized canvas coordinates. Persistent layers, masks, guides, and canvas corner quads use the `[0, 1]` range on each axis.
+- **Canonical coordinates** are normalized canvas coordinates. Scribble stroke points may lie outside `[0, 1]`; masks, guides, and canvas corner quads remain bounded to the canvas plane.
 - **Observed coordinates** are pixels in the photo or live camera frame. The project homography maps between these and canonical coordinates.
 - **Viewport coordinates** are client-pixel positions in the complete painting field, including space outside the visible canvas.
 - **Raw stage-relative coordinates** convert viewport input into the stage's normalized coordinate system without clamping. Navigation uses these coordinates so wheel and pinch zoom preserve the actual focus point even when it is outside the canvas.
-- **Clamped editing coordinates** clamp raw stage-relative input to `[0, 1]` before changing canonical content or canvas corners. Corner hit testing uses the raw point first, so a handle's generous local circular target cannot extend across unrelated field space.
+- **Editing coordinates** stay raw for drawing strokes, including coalesced samples, so source points outside the plane can be transformed onto it later. Mask and corner edits clamp to `[0, 1]`. Corner hit testing uses the raw point first, so a handle's generous local circular target cannot extend across unrelated field space.
 
 The stage view transform (`panX`, `panY`, and `zoom`) is a transient navigation transform applied to the rendered stage. It does not alter canonical content, homography data, or source raster coordinates.
 
@@ -32,7 +32,7 @@ The stage view transform (`panX`, `panY`, and `zoom`) is a transient navigation 
 
 ## Rendering Contract
 
-The canonical compositor produces one flat transparent texture. `ProjectionRenderer` inverse-maps display pixels through the current homography and blends that texture over a static image or current video frame. Changing camera geometry does not rebuild canonical content.
+The canonical compositor produces one flat transparent texture. `ProjectionRenderer` inverse-maps display pixels through the current homography and blends that texture over a static image or current video frame. Changing camera geometry does not rebuild canonical content. Off-canvas drawing strokes remain in their layer source raster for future transforms; the canonical viewport previews them in the surrounding field, outside the exported/projection texture.
 
 ## Persistence Contract
 
