@@ -178,6 +178,10 @@ The app:
 
 Reference items are edited individually over the flat canonical canvas.
 
+Click a reference item in the layer list to open its editing controls. Its row's
+transform icon enters reference composition directly; the Reference group's
+transform icon moves its items together.
+
 For the selected reference item, allow:
 
 - translate
@@ -212,9 +216,9 @@ The user may add additional reference images at any time.
 
 ### Finish reference composition
 
-When satisfied, the user selects something such as:
-
-    Done Editing Reference
+When satisfied, the user selects the orange tick in the reference item's edit
+header below the layer list, or the tick in the viewport mode chip. Both finish
+the current mode. There is no separate Done button within the reference controls.
 
 The complete reference group then behaves as a single logical layer for most normal actions.
 
@@ -224,11 +228,8 @@ At group level:
 - opacity
 - blend mode
 
-The user can later reopen:
-
-    Edit Reference
-
-to modify individual items.
+The user can later click a reference item or the Reference group in the layer
+list to reopen editing of an item.
 
 The composition should not be permanently baked.
 
@@ -943,17 +944,19 @@ Suggested modes:
 
     VIEW
     COMPOSE_REFERENCE
+    TRANSFORM
     EDIT_CORNERS
     DRAW
     MASK
     EYEDROPPER
 
-This prevents the same drag gesture from ambiguously meaning:
+Clicking a layer name opens its edit controls; the transform icon on its row
+enters the applicable transform mode directly. Reference items use
+`COMPOSE_REFERENCE`; drawings, captures, and guides use `TRANSFORM`. The
+Reference group's transform icon selects its items to move together. 
 
-- move reference
-- draw
-- erase mask
-- move canvas corner
+Any transform or editing mode can be ended by clicking one of the two tick buttons.
+
 
 Only the active mode should consume the relevant pointer input.
 

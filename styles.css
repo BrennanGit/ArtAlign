@@ -118,6 +118,7 @@ button svg, .fixed-layer svg { width: 20px; height: 20px; fill: none; stroke: cu
 .layer-panel-header > div { display: flex; gap: 4px; }
 .mini-icon-button { width: 32px; min-width: 32px; height: 32px; min-height: 32px; display: inline-grid; place-items: center; padding: 0; border-color: transparent; background: transparent; }
 .mini-icon-button svg { width: 17px; height: 17px; }
+.panel-finish { border-radius: 4px; }
 .mini-icon-button.active { border-color: var(--accent); color: var(--accent-dark); }
 .mini-icon-button.danger:hover { border-color: var(--accent); color: var(--accent-dark); }
 .control { display: grid; gap: 4px; margin: 8px 0; color: var(--muted); font-size: 11px; }
@@ -151,8 +152,9 @@ button svg, .fixed-layer svg { width: 20px; height: 20px; fill: none; stroke: cu
 .fixed-layer { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); }
 .fixed-layer svg { width: 15px; height: 15px; }
 .layer-editor { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-.editor-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
-.editor-heading strong { overflow: hidden; font-family: Georgia, serif; font-size: 16px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.editor-heading strong { min-width: 0; overflow: hidden; font-family: Georgia, serif; font-size: 16px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.editor-heading-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .editor-heading span { flex: 0 0 auto; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 
 dialog { width: min(440px, calc(100% - 28px)); padding: 0; border: 1px solid var(--ink); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }

@@ -22,6 +22,24 @@
 ---
 ## Tasks
 
+- [done] 040-document-layer-workflow — Document Layer Editing Workflow (2026-09-23) — Owner: agent
+  Type: docs
+  Files: spec.md
+  Functions: n/a
+  Related: #038, #039
+
+- [done] 038-panel-finish — Panel Finish Control (2026-09-23) — Owner: agent
+  Type: feature
+  Files: src/app.js, styles.css, README.md
+  Functions: panelHeader(), handleInspectorClick(), renderInspector()
+  Related: #037
+
+- [done] 039-layer-transform-shortcut — Layer Transform Shortcut (2026-09-23) — Owner: agent
+  Type: feature
+  Files: src/app.js, styles.css, README.md
+  Functions: layerRow(), handleInspectorClick(), editLayer(), transformLayer(), finishLayerDrag(), panelHeader(), editorHeading(), renderInspector()
+  Related: #038
+
 - [done] 036-drawing-transform — Drawing Transform (2026-09-23) — Owner: agent
   Type: feature
   Files: src/model.js, src/canonical.js, src/app.js, tests/input.test.mjs, tests/canvas-resize.test.mjs, README.md

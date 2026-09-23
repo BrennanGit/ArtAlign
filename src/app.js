@@ -419,6 +419,7 @@ function renderInspector() {
     elements.inspector.innerHTML = `
       ${panelHeader(`Rectify ${layer?.name ?? "reference"}`)}
       <div class="layer-editor">
+        ${editorHeading(layer?.name ?? "Reference", "rectification")}
         <p>Align the four handles with the physical print or page.</p>
         <button data-action="apply-reference-rectification" class="primary">Apply rectification</button>
         <div class="control-row"><button data-action="redetect-reference">Redetect</button><button data-action="cancel-reference-rectification">Cancel</button></div>
@@ -432,7 +433,7 @@ function renderInspector() {
   ` : "";
   const referenceControls = selected?.kind === "reference-item" ? `
     <div class="control-row four"><button data-action="fit">Fit</button><button data-action="centre">Centre</button><button data-action="reset">Reset</button><button data-action="flip" title="Flip horizontally">${selected.transform.flipX ? "Unflip" : "Flip"}</button></div>
-    <div class="control-row"><button data-action="rectify-reference">Rectify</button><button data-action="done-reference" class="primary">Done</button></div>
+    <button data-action="rectify-reference">Rectify</button>
   ` : "";
   const colourKeyControls = isRasterLayer(selected) ? `
     <h3>Colour key</h3>
@@ -452,7 +453,6 @@ function renderInspector() {
     <button data-action="mask-reset">Reset mask</button>
   ` : "";
   const scribbleControls = selected?.kind === "scribble" ? `
-    <button data-action="drawing-transform" class="${project.mode === MODES.TRANSFORM ? "primary" : ""}">${project.mode === MODES.TRANSFORM ? "Back to drawing" : "Transform drawing"}</button>
     <div class="control-row three drawing-tools">
       <button data-action="pen" class="${drawSettings.tool === "pen" ? "primary" : ""}" title="Pen" aria-label="Pen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 8l3 3"/></svg></button>
       <button data-action="line" class="${drawSettings.tool === "line" ? "primary" : ""}" title="Straight line" aria-label="Straight line"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19 19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg></button>
@@ -461,9 +461,6 @@ function renderInspector() {
     <label class="control">Colour<input data-field="drawColour" type="color" value="${drawSettings.colour}"></label>
     <label class="control">Width<input data-field="drawWidth" type="range" min="0.002" max="0.05" step="0.002" value="${drawSettings.width}"></label>
     <button data-action="clear">Clear drawing</button>
-  ` : "";
-  const otherTransformControls = selected?.kind === "capture" || selected?.kind === "guide" ? `
-    <button data-action="layer-transform" class="${project.mode === MODES.TRANSFORM ? "primary" : ""}">${project.mode === MODES.TRANSFORM ? "Done transforming" : "Transform layer"}</button>
   ` : "";
   const guideControls = selected?.kind === "guide" ? `
     <label class="control">Horizontal divisions<input data-field="horizontal" type="number" min="0" max="100" step="1" value="${selected.horizontal}"></label>
@@ -479,8 +476,12 @@ function renderInspector() {
   elements.inspector.innerHTML = `
     ${panelHeader("Layers", true)}
     <div class="layer-list">${layerRows()}</div>
-    ${editingLayerId === selected?.id ? `<div class="layer-editor"><div class="editor-heading"><strong>${escapeHtml(selected.name)}</strong><span>${titleCase(selected.kind)}</span></div>${common}${referenceControls}${referenceGroupControls}${colourKeyControls}${maskControls}${scribbleControls}${otherTransformControls}${guideControls}${projectionControls}</div>` : projectionControls ? `<div class="layer-editor">${projectionControls}</div>` : ""}
+    ${editingLayerId === selected?.id ? `<div class="layer-editor">${editorHeading(selected.name, selected.kind)}${common}${referenceControls}${referenceGroupControls}${colourKeyControls}${maskControls}${scribbleControls}${guideControls}${projectionControls}</div>` : projectionControls ? `<div class="layer-editor">${projectionControls}</div>` : ""}
   `;
+}
+
+function editorHeading(name, kind) {
+  return `<div class="editor-heading"><strong>${escapeHtml(name)}</strong><div class="editor-heading-actions"><span>${titleCase(kind)}</span><button data-action="finish-mode" class="mini-icon-button panel-finish primary" title="Done" aria-label="Finish current mode"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg></button></div></div>`;
 }
 
 function panelHeader(title, allowAdd = false) {
@@ -507,7 +508,7 @@ function layerRow(layer, nested = false, fixed = false) {
       <button class="visibility mini-icon-button" data-visible="${layer.id}" title="${layer.visible ? "Hide" : "Show"} ${escapeHtml(layer.name)}" aria-label="${layer.visible ? "Hide" : "Show"} ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24">${layer.visible ? `<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>` : `<path d="m3 3 18 18M10.6 6.2A11 11 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-2.1 2.8M6.7 6.7C3.6 8.6 2 12 2 12s3.5 6 10 6a10 10 0 0 0 4.2-.9"/>`}</svg></button>
       ${linking ? `<label class="transform-link" title="Move ${escapeHtml(layer.name)} together"><input type="checkbox" data-transform-link="${layer.id}" aria-label="Move ${escapeHtml(layer.name)} together" ${checked ? "checked" : ""} ${active || layer.kind === "reference-group" && !layer.children.length ? "disabled" : ""}></label>` : ""}
       ${renaming ? `<input class="layer-rename-input" data-rename-input="${layer.id}" value="${escapeHtml(layer.name)}" aria-label="Layer name">` : `<button class="layer-name" data-select="${layer.id}"><strong>${escapeHtml(layer.name)}</strong><span>${percent}%</span></button>`}
-      <button class="mini-icon-button" data-action="edit-layer" data-layer-action-id="${layer.id}" title="Edit ${escapeHtml(layer.name)}" aria-label="Edit ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 8l3 3"/></svg></button>
+      <button class="mini-icon-button" data-action="transform-layer" data-layer-action-id="${layer.id}" title="Transform ${escapeHtml(layer.name)}" aria-label="Transform ${escapeHtml(layer.name)}" ${layer.kind === "reference-group" && !layer.children.length ? "disabled" : ""}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9 2 12l3 3M9 5l3-3 3 3m4 4 3 3-3 3m-4 4-3 3-3-3M2 12h20M12 2v20"/></svg></button>
       <button class="mini-icon-button" data-action="rename-layer" data-layer-action-id="${layer.id}" title="${renaming ? "Save" : "Rename"} ${escapeHtml(layer.name)}" aria-label="${renaming ? "Save" : "Rename"} ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24">${renaming ? `<path d="M5 12l4 4L19 6"/>` : `<path d="M4 20h16M14 4l6 6M5 17l2-6L16 2l6 6-9 9z"/>`}</svg></button>
       ${fixed ? `<span class="fixed-layer" title="Reference group"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M5 8h14M5 16h14"/></svg></span>` : `<button class="mini-icon-button danger" data-action="delete-layer" data-layer-action-id="${layer.id}" title="Delete ${escapeHtml(layer.name)}" aria-label="Delete ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg></button>`}
     </div>
@@ -518,17 +519,7 @@ async function handleInspectorClick(event) {
   if (suppressInspectorClick) return;
   const selectId = event.target.closest("[data-select]")?.dataset.select;
   const visibleId = event.target.closest("[data-visible]")?.dataset.visible;
-  if (selectId) {
-    project.activeLayerId = selectId;
-    if (project.mode === MODES.COMPOSE_REFERENCE || project.mode === MODES.TRANSFORM) {
-      const kind = findLayer(selectId)?.kind;
-      project.mode = kind === "reference-item" ? MODES.COMPOSE_REFERENCE : kind === "reference-group" ? MODES.VIEW : MODES.TRANSFORM;
-    }
-    scheduleSave();
-    renderInspector();
-    drawInteraction();
-    return;
-  }
+  if (selectId) return editLayer(selectId);
   if (visibleId) {
     const layer = findLayer(visibleId);
     layer.visible = !layer.visible;
@@ -541,7 +532,8 @@ async function handleInspectorClick(event) {
   const actionLayerId = event.target.closest("[data-layer-action-id]")?.dataset.layerActionId;
   if (action === "close-panel") return closeLayerPanel();
   if (action === "add-layer") return elements.layerDialog.showModal();
-  if (action === "edit-layer") return editLayer(actionLayerId);
+  if (action === "finish-mode") return finishCurrentMode();
+  if (action === "transform-layer") return transformLayer(actionLayerId);
   if (action === "rename-layer") return renameLayer(actionLayerId);
   if (action === "delete-layer") return deleteLayer(actionLayerId);
   if (action === "apply-reference-rectification") return applyReferenceRectification();
@@ -559,13 +551,6 @@ async function handleInspectorClick(event) {
   if (action === "capture") return capturePainting();
   const layer = selectedLayer();
   if (action === "rectify-reference") return beginReferenceRectification(layer);
-  if (action === "done-reference") {
-    project.activeLayerId = project.referenceGroup.id;
-    project.mode = MODES.VIEW;
-    linkedLayerIds.clear();
-    scheduleSave();
-    return refresh();
-  }
   if (action === "edit-reference") {
     project.activeLayerId = project.referenceGroup.children[0]?.id ?? project.referenceGroup.id;
     project.mode = MODES.COMPOSE_REFERENCE;
@@ -585,18 +570,6 @@ async function handleInspectorClick(event) {
     return;
   }
   if (action === "mask-reset") return resetMask();
-  if (action === "drawing-transform") {
-    linkedLayerIds.clear();
-    project.mode = project.mode === MODES.TRANSFORM ? MODES.DRAW : MODES.TRANSFORM;
-    scheduleSave();
-    return refresh(false);
-  }
-  if (action === "layer-transform") {
-    linkedLayerIds.clear();
-    project.mode = project.mode === MODES.TRANSFORM ? MODES.VIEW : MODES.TRANSFORM;
-    scheduleSave();
-    return refresh(false);
-  }
   if (action === "fit") layer.transform.scale = 1;
   if (action === "centre") Object.assign(layer.transform, { x: 0.5, y: 0.5 });
   if (action === "reset") Object.assign(layer.transform, { x: 0.5, y: 0.5, scale: 1, rotation: 0, flipX: false });
@@ -724,6 +697,24 @@ async function editLayer(layerId) {
   scheduleSave();
 }
 
+async function transformLayer(layerId) {
+  const layer = findLayer(layerId);
+  if (!layer) return;
+  const target = layer.kind === "reference-group" ? layer.children.at(-1) : layer;
+  if (!target) return;
+  linkedLayerIds.clear();
+  if (layer.kind === "reference-group") {
+    for (const child of layer.children) {
+      if (child.id !== target.id) linkedLayerIds.add(child.id);
+    }
+  }
+  project.activeLayerId = target.id;
+  editingLayerId = target.id;
+  project.mode = target.kind === "reference-item" ? MODES.COMPOSE_REFERENCE : MODES.TRANSFORM;
+  await setView("canonical");
+  scheduleSave();
+}
+
 function renameLayer(layerId) {
   const layer = findLayer(layerId);
   if (!layer) return;
@@ -785,6 +776,7 @@ function beginLayerDrag(event) {
   layerDrag = {
     pointerId: event.pointerId,
     layerId: layer.id,
+    selectId: event.target.closest("[data-select]")?.dataset.select,
     row,
     startX: event.clientX,
     startY: event.clientY,
@@ -877,10 +869,12 @@ function finishLayerDrag(event) {
   layerDrag.row.classList.remove("dragging");
   const moved = layerDrag.moved || layerDrag.direction === "reorder";
   const changed = layerDrag.changed;
+  const selectId = layerDrag.selectId;
   layerDrag = null;
-  if (!moved) return;
+  if (!moved && !selectId) return;
   suppressInspectorClick = true;
   setTimeout(() => { suppressInspectorClick = false; }, 0);
+  if (!moved) return editLayer(selectId).catch(showError);
   if (changed) {
     scheduleSave();
     refresh().catch(showError);
