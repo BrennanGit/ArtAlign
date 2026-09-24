@@ -503,11 +503,12 @@ function layerRow(layer, nested = false, fixed = false) {
   const checked = layer.kind === "reference-group"
     ? layer.children.length > 0 && layer.children.every((child) => child.id === project.activeLayerId || linkedLayerIds.has(child.id))
     : layer.id === project.activeLayerId || linkedLayerIds.has(layer.id);
+  const transformLabel = linking ? `${checked ? "Remove" : "Add"} ${escapeHtml(layer.name)} ${checked ? "from" : "to"} transform` : `Transform ${escapeHtml(layer.name)}`;
   return `
     <div class="layer-row ${active ? "active" : ""} ${editing ? "editing" : ""} ${nested ? "nested" : ""}" data-layer-id="${layer.id}" data-fixed="${fixed}" style="--layer-opacity:${percent}%">
       <button class="visibility mini-icon-button" data-visible="${layer.id}" title="${layer.visible ? "Hide" : "Show"} ${escapeHtml(layer.name)}" aria-label="${layer.visible ? "Hide" : "Show"} ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24">${layer.visible ? `<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>` : `<path d="m3 3 18 18M10.6 6.2A11 11 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-2.1 2.8M6.7 6.7C3.6 8.6 2 12 2 12s3.5 6 10 6a10 10 0 0 0 4.2-.9"/>`}</svg></button>
       ${renaming ? `<input class="layer-rename-input" data-rename-input="${layer.id}" value="${escapeHtml(layer.name)}" aria-label="Layer name">` : `<button class="layer-name" data-select="${layer.id}"><strong>${escapeHtml(layer.name)}</strong><span>${percent}%</span></button>`}
-      ${linking ? `<label class="transform-link" title="Move ${escapeHtml(layer.name)} together"><input type="checkbox" data-transform-link="${layer.id}" aria-label="Move ${escapeHtml(layer.name)} together" ${checked ? "checked" : ""} ${layer.kind === "reference-group" && !layer.children.length ? "disabled" : ""}></label>` : `<button class="mini-icon-button" data-action="transform-layer" data-layer-action-id="${layer.id}" title="Transform ${escapeHtml(layer.name)}" aria-label="Transform ${escapeHtml(layer.name)}" ${layer.kind === "reference-group" && !layer.children.length ? "disabled" : ""}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9 2 12l3 3M9 5l3-3 3 3m4 4 3 3-3 3m-4 4-3 3-3-3M2 12h20M12 2v20"/></svg></button>`}
+      <button class="mini-icon-button transform-toggle ${linking && checked ? "selected" : ""}" data-action="transform-layer" data-layer-action-id="${layer.id}" title="${transformLabel}" aria-label="${transformLabel}" ${linking ? `aria-pressed="${checked}"` : ""} ${layer.kind === "reference-group" && !layer.children.length ? "disabled" : ""}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9 2 12l3 3M9 5l3-3 3 3m4 4 3 3-3 3m-4 4-3 3-3-3M2 12h20M12 2v20"/></svg></button>
       <button class="mini-icon-button" data-action="rename-layer" data-layer-action-id="${layer.id}" title="${renaming ? "Save" : "Rename"} ${escapeHtml(layer.name)}" aria-label="${renaming ? "Save" : "Rename"} ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24">${renaming ? `<path d="M5 12l4 4L19 6"/>` : `<path d="M4 20h16M14 4l6 6M5 17l2-6L16 2l6 6-9 9z"/>`}</svg></button>
       ${fixed ? `<span class="fixed-layer" title="Reference group"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M5 8h14M5 16h14"/></svg></span>` : `<button class="mini-icon-button danger" data-action="delete-layer" data-layer-action-id="${layer.id}" title="Delete ${escapeHtml(layer.name)}" aria-label="Delete ${escapeHtml(layer.name)}"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg></button>`}
     </div>
@@ -532,7 +533,7 @@ async function handleInspectorClick(event) {
   if (action === "close-panel") return closeLayerPanel();
   if (action === "add-layer") return elements.layerDialog.showModal();
   if (action === "finish-mode") return finishCurrentMode();
-  if (action === "transform-layer") return transformLayer(actionLayerId);
+  if (action === "transform-layer") return project.mode === MODES.TRANSFORM || project.mode === MODES.COMPOSE_REFERENCE ? toggleTransformLink(actionLayerId) : transformLayer(actionLayerId);
   if (action === "rename-layer") return renameLayer(actionLayerId);
   if (action === "delete-layer") return deleteLayer(actionLayerId);
   if (action === "apply-reference-rectification") return applyReferenceRectification();
@@ -606,35 +607,37 @@ function handleInspectorInput(event) {
   requestEditorPreview();
 }
 
-function handleInspectorChange(event) {
-  const layerId = event.target.dataset.transformLink;
-  if (layerId) {
-    const layer = findLayer(layerId);
-    const targets = layer?.kind === "reference-group" ? layer.children : layer ? [layer] : [];
-    const selectedIds = new Set([project.activeLayerId, ...linkedLayerIds]);
-    for (const target of targets) {
-      if (event.target.checked) selectedIds.add(target.id);
-      else selectedIds.delete(target.id);
-    }
-    if (!selectedIds.size) {
-      history?.endGroup();
-      finishCurrentMode().catch(showError);
-      return;
-    }
-    if (!selectedIds.has(project.activeLayerId)) {
-      project.activeLayerId = selectedIds.values().next().value;
-      editingLayerId = project.activeLayerId;
-      project.mode = selectedLayer().kind === "reference-item" ? MODES.COMPOSE_REFERENCE : MODES.TRANSFORM;
-      scheduleSave();
-    }
-    linkedLayerIds.clear();
-    for (const id of selectedIds) {
-      if (id !== project.activeLayerId) linkedLayerIds.add(id);
-    }
-    updateModeChip();
-    renderInspector();
-    drawInteraction();
+function handleInspectorChange() {
+  history?.endGroup();
+}
+
+function toggleTransformLink(layerId) {
+  const layer = findLayer(layerId);
+  const targets = layer?.kind === "reference-group" ? layer.children : layer ? [layer] : [];
+  const selectedIds = new Set([project.activeLayerId, ...linkedLayerIds]);
+  const checked = targets.length > 0 && targets.every((target) => selectedIds.has(target.id));
+  for (const target of targets) {
+    if (checked) selectedIds.delete(target.id);
+    else selectedIds.add(target.id);
   }
+  if (!selectedIds.size) {
+    history?.endGroup();
+    finishCurrentMode().catch(showError);
+    return;
+  }
+  if (!selectedIds.has(project.activeLayerId)) {
+    project.activeLayerId = selectedIds.values().next().value;
+    editingLayerId = project.activeLayerId;
+    project.mode = selectedLayer().kind === "reference-item" ? MODES.COMPOSE_REFERENCE : MODES.TRANSFORM;
+    scheduleSave();
+  }
+  linkedLayerIds.clear();
+  for (const id of selectedIds) {
+    if (id !== project.activeLayerId) linkedLayerIds.add(id);
+  }
+  updateModeChip();
+  renderInspector();
+  drawInteraction();
   history?.endGroup();
 }
 
