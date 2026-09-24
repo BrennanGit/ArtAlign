@@ -1,7 +1,7 @@
 # Tracking Meta Index
 
 - Index created: {YYYY-MM-DD}
-- Last updated: 2026-09-23 UTC
+- Last updated: 2026-09-24 UTC
 
 ---
 
@@ -21,6 +21,12 @@
 
 ---
 ## Tasks
+
+- [done] 042-transform-selection-slot — Transform Selection Slot (2026-09-24) — Owner: agent
+  Type: feature
+  Files: src/app.js, styles.css, README.md
+  Functions: layerRow(), handleInspectorChange(), finishCurrentMode()
+  Related: #037, #039
 
 - [done] 041-off-canvas-drawing — Off-Canvas Drawing (2026-09-23) — Owner: agent
   Type: bugfix

@@ -22,7 +22,7 @@ Open `http://localhost:8080`. Projects and image assets are stored locally in In
 4. Open the view menu in the top-right corner for Project onto photo, Project onto video, or Download. The PNG includes visible layers over white at canonical resolution. Automatic detection can always be replaced with manual corner adjustment and keeps the projected overlay visible while dragging.
 5. In Photo mode, open Layers and select **Add photo as layer** to create a persistent, rectified canonical layer. In Live mode, use **Capture painting** from the same panel.
 
-In reference or layer transform mode, check the boxes beside other layers to move, resize, and rotate them together. The active layer drives the handles; a checked Reference group includes its reference items. Captures and guides can also be transformed from their row icons. Selection clears when leaving transform mode, while the resulting positions are saved and can be undone together.
+In reference or layer transform mode, checkboxes replace the transform icons in each layer row. Check other layers to move, resize, and rotate them together; the active layer drives the handles, and a checked Reference group includes its reference items. Unticking the active layer makes another checked layer active, and unticking the last checked layer exits transform mode. Captures and guides can also be transformed from their row icons. The resulting positions are saved and can be undone together.
 
 Mask edits preview continuously while drawing, and the on-canvas cursor shows the current brush footprint. Pointer input retains coalesced pen/touch/mouse samples and smooths the rendered vector path.
 
